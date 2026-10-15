@@ -7,7 +7,9 @@ export type ServerMessage =
       type: "ready";
       session_id: string;
       keywords: string[];
-      commands: { keyword: string; action: string; label: string }[];
+      actions: { keyword: string; action: string; label: string }[];
+      /** Deprecated alias for `actions`. Sent by the server for old clients. */
+      commands?: { keyword: string; action: string; label: string }[];
       policy: { threshold: number; min_consecutive: number; cooldown_s: number; hop_s: number };
     }
   | { type: "frame"; t_s: number; label: string; score: number }
@@ -18,15 +20,15 @@ export type ServerMessage =
       label: string;
       score: number;
       accepted: boolean;
-      reason: "accepted" | "cooldown" | "low_confidence" | "unknown" | "silence";
+      // Known reasons are "accepted" | "cooldown" | "low_confidence" | "unknown" | "silence".
+      // Custom checkpoints may emit any non-action label as the reason; accept it.
+      reason: string;
       action: Action | null;
       processing_ms: number;
     }
   | { type: "backpressure"; dropped_s: number }
   | { type: "error"; code: string; message: string }
   | { type: "stopped" };
-
-const REASONS = ["accepted", "cooldown", "low_confidence", "unknown", "silence"];
 
 export function parseServerMessage(text: string): ServerMessage | null {
   let value: unknown;
@@ -38,25 +40,36 @@ export function parseServerMessage(text: string): ServerMessage | null {
   if (typeof value !== "object" || value === null || !("type" in value)) return null;
   const message = value as Record<string, unknown>;
   switch (message.type) {
-    case "ready":
-      return typeof message.session_id === "string" && Array.isArray(message.keywords)
-        ? (message as ServerMessage)
-        : null;
+    case "ready": {
+      const actions = (message as { actions?: unknown }).actions;
+      const legacy = (message as { commands?: unknown }).commands;
+      const list = Array.isArray(actions) ? actions : Array.isArray(legacy) ? legacy : null;
+      if (typeof message.session_id !== "string" || !Array.isArray(message.keywords) || list === null)
+        return null;
+      return { ...(message as object), actions: list } as ServerMessage;
+    }
     case "frame":
       return typeof message.label === "string" && typeof message.score === "number"
         ? (message as ServerMessage)
         : null;
-    case "decision":
-      return typeof message.id === "number" &&
-        typeof message.label === "string" &&
-        typeof message.score === "number" &&
-        typeof message.accepted === "boolean" &&
-        REASONS.includes(message.reason as string) &&
-        (message.action === null || isAction(message.action)) &&
-        // An action only ever rides on an accepted decision.
-        (message.accepted === (message.action !== null))
-        ? (message as ServerMessage)
-        : null;
+    case "decision": {
+      const reason = (message as { reason?: unknown }).reason;
+      const action = (message as { action?: unknown }).action;
+      if (
+        typeof message.id !== "number" ||
+        typeof message.label !== "string" ||
+        typeof message.score !== "number" ||
+        typeof message.accepted !== "boolean" ||
+        typeof reason !== "string" ||
+        reason.length === 0 ||
+        !(action === null || isAction(action)) ||
+        // An action only ever rides on an accepted decision with reason "accepted".
+        message.accepted !== (action !== null) ||
+        (message.accepted ? reason !== "accepted" : reason === "accepted")
+      )
+        return null;
+      return message as ServerMessage;
+    }
     case "backpressure":
       return typeof message.dropped_s === "number" ? (message as ServerMessage) : null;
     case "error":

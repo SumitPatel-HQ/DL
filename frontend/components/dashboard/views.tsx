@@ -141,7 +141,7 @@ export function IsolatedView({ run }: { run: IsolatedRun }) {
         <TargetTile
           target={run.target}
           title={`Macro-F1 · ${run.provenance.split}`}
-          denominator={<>over <b className="num">{formatNumber(m.examples)}</b> labeled 1 s clips, 8 classes</>}
+          denominator={<>over <b className="num">{formatNumber(m.examples)}</b> labeled 1 s clips, {run.labels?.length ?? m.confusion_matrix.labels.length} classes</>}
         />
         <Tile
           title={`Accuracy · ${run.provenance.split}`}
@@ -272,7 +272,7 @@ export function IsolatedView({ run }: { run: IsolatedRun }) {
           <div className="card-foot">
             <span>
               Macro-F1 <b className="mono" style={{ color: "var(--text)" }}>{m.macro_f1.toFixed(3)}</b> is the unweighted mean
-              of the 8 F1 values above.
+              of the {run.labels?.length ?? m.per_class.length} F1 values above.
             </span>
           </div>
           <RunTrace run={run} />

@@ -7,7 +7,6 @@ import {
   detectionAt, filterDetections, neighbor, segment, sortDetections, type SortDirection, type SortKey,
 } from "../../lib/detections.ts";
 import { formatClock, formatDuration, formatTimestamp, shortHash } from "../../lib/format.ts";
-import { KEYWORD_ORDER } from "../../lib/keywords.ts";
 import {
   CheckIcon, NextIcon, PauseIcon, PlayIcon, PrevIcon, SearchIcon, TrashIcon, WaveIcon, XIcon,
 } from "../icons";
@@ -73,8 +72,11 @@ export function RecordingReview({
   const dialogRef = useRef<HTMLDialogElement>(null);
 
   const ready = backend.status === "ready";
-  const modelKeywords = ready ? backend.model.keywords : KEYWORD_ORDER;
-  const chosen = picked ?? (recording.keywords.length ? recording.keywords : modelKeywords);
+  // No fallback to a static list: without the active model there are no
+  // keywords to offer. Never default to stale recording.keywords either;
+  // the default is always the current model's keywords.
+  const modelKeywords: string[] | null = ready ? backend.model.keywords : null;
+  const chosen = picked ?? modelKeywords ?? [];
   const active = isActive(recording);
   const shownResult = recording.status === "completed" && result?.status === "completed" ? result : null;
   const phase = phaseOf(recording, shownResult);
@@ -254,8 +256,14 @@ export function RecordingReview({
     }
   };
 
-  const toggleKeyword = (keyword: string) =>
-    setPicked(chosen.includes(keyword) ? chosen.filter((k) => k !== keyword) : KEYWORD_ORDER.filter((k) => k === keyword || chosen.includes(k)));
+  const toggleKeyword = (keyword: string) => {
+    const order = modelKeywords ?? chosen;
+    return setPicked(
+      chosen.includes(keyword)
+        ? chosen.filter((k) => k !== keyword)
+        : order.filter((k) => k === keyword || chosen.includes(k)),
+    );
+  };
 
   const toggleFilter = (keyword: string) => {
     const current = filter ?? recording.keywords;
@@ -289,8 +297,17 @@ export function RecordingReview({
             type="button"
             className="btn danger"
             onClick={() => dialogRef.current?.showModal()}
-            disabled={active || busy !== null}
-            title={active ? "Deletion waits until analysis finishes" : undefined}
+            disabled={busy !== null}
+            title={
+              active
+                ? "Delete this recording now; queued or running analysis is cancelled"
+                : undefined
+            }
+            aria-label={
+              active
+                ? "Delete this recording and cancel its queued or running analysis"
+                : "Delete this recording"
+            }
           >
             <TrashIcon size={15} /> Delete
           </button>
@@ -298,7 +315,14 @@ export function RecordingReview({
         <div className="analyze-row" style={{ borderTop: "1px solid var(--border)" }}>
           <div className="row" role="group" aria-label="Keywords to detect">
             <span className="label">Keywords{ready && backend.model.version ? ` · ${backend.model.version}` : ""}</span>
-            {modelKeywords.map((keyword) => (
+            {modelKeywords === null || modelKeywords.length === 0 ? (
+              <span className="table-note" role="status">
+                {ready
+                  ? "The active model reports no keywords, so there is nothing to select."
+                  : "No model is active, so no keywords are available. Connect the local API and model to select keywords."}
+              </span>
+            ) : (
+              modelKeywords.map((keyword) => (
               <button
                 key={keyword}
                 type="button"
@@ -311,7 +335,8 @@ export function RecordingReview({
                 <span className="swatch" />
                 {keyword}
               </button>
-            ))}
+              ))
+            )}
             <span className="shell-spacer" />
             <button
               type="button"
@@ -487,6 +512,7 @@ export function RecordingReview({
           <h2 id="delete-title">Delete this Recording?</h2>
           <p>
             <strong>{recording.filename}</strong> will be removed from local storage. This cannot be undone.
+            {active ? " Its queued or running analysis is cancelled first." : ""}
           </p>
           <ul>
             <li>Audio bytes ({formatDuration(recording.duration_s)} WAV)</li>

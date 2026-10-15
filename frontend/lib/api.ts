@@ -132,12 +132,13 @@ export type IsolatedRun = RunSummary & {
   kind: "isolated";
   experimental: false;
   provenance: Provenance & { config: Record<string, unknown> };
+  labels: string[];
   metrics: {
     examples: number;
     accuracy: number;
     macro_f1: number;
     per_class: ClassMetrics[];
-    confusion_matrix: { labels: string[]; rows: "true"; columns: "predicted"; values: number[][] };
+    confusion_matrix: { labels: string[]; rows: "true"; columns: "detected"; values: number[][] };
   };
   training: {
     train_examples: number;
@@ -197,9 +198,11 @@ export type ContinuousRun = RunSummary & {
 
 export type RunDetail = IsolatedRun | ContinuousRun;
 
-export type CommandMap = {
+export type ActionMap = {
   version: number;
-  commands: { keyword: string; action: string; label: string }[];
+  actions: { keyword: string; action: string; label: string }[];
+  /** Deprecated alias for `actions`, returned by GET /api/commands and the WS ready message. */
+  commands?: { keyword: string; action: string; label: string }[];
   rejected_labels: string[];
   policy: {
     hop_s: number;
@@ -212,6 +215,9 @@ export type CommandMap = {
   };
   retention: string;
 };
+
+/** Deprecated alias. Use ActionMap with the `actions` field. */
+export type CommandMap = ActionMap;
 
 export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response;
@@ -269,6 +275,8 @@ export const api = {
     ),
   deleteEvaluation: (id: string) =>
     request<void>(`/api/evaluations/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  actions: () => request<ActionMap>("/api/actions"),
+  /** Deprecated alias for actions(). Kept for backward compatibility. */
   commands: () => request<CommandMap>("/api/commands"),
 };
 

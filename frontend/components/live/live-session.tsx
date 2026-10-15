@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useReducer, useRef, useState, type CSSProperties } from "react";
-import { api, LIVE_URL, type CommandMap } from "../../lib/api.ts";
+import { api, LIVE_URL, type ActionMap } from "../../lib/api.ts";
 import { formatScore } from "../../lib/format.ts";
 import { keywordColor, REJECTED_COLOR } from "../../lib/keywords.ts";
 import { micPermission, openMic, type MicPipeline } from "../../lib/live/mic.ts";
@@ -16,10 +16,10 @@ import { Banner, ErrorBanner } from "../ui";
 import { CooldownBar, Elapsed, LevelMeter } from "./meters";
 import { Player, SLIDES, SlideDeck } from "./stage";
 
-type Policy = CommandMap["policy"];
+type Policy = ActionMap["policy"];
 type Decision = Extract<ServerMessage, { type: "decision" }>;
 
-const DEFAULT_COMMANDS: CommandMap["commands"] = [
+const DEFAULT_ACTIONS: ActionMap["actions"] = [
   { keyword: "right", action: "next_slide", label: "Next slide" },
   { keyword: "left", action: "previous_slide", label: "Previous slide" },
   { keyword: "go", action: "play", label: "Play" },
@@ -39,7 +39,7 @@ let entryKey = 0;
 export function LiveSession() {
   const { backend, refresh } = useBackend();
   const [session, dispatch] = useReducer(sessionReducer, IDLE);
-  const [commands, setCommands] = useState<CommandMap | null>(null);
+  const [actionMap, setActionMap] = useState<ActionMap | null>(null);
   const [policy, setPolicy] = useState<Policy | null>(null);
   const [stage, setStage] = useState<Stage>(() => initialStage(SLIDES.length));
   const [direction, setDirection] = useState<1 | -1>(1);
@@ -64,9 +64,9 @@ export function LiveSession() {
 
   useEffect(() => {
     let cancelled = false;
-    api.commands().then((map) => {
+    api.actions().then((map) => {
       if (cancelled) return;
-      setCommands(map);
+      setActionMap(map);
       setPolicy(map.policy);
     }).catch(() => {});
     return () => {
@@ -291,8 +291,10 @@ export function LiveSession() {
   const listening = status === "listening";
   const pending = status === "requesting" || status === "connecting";
   const canStart = backend.status === "ready" && !listening && !pending;
-  const commandList = commands?.commands ?? DEFAULT_COMMANDS;
-  const lastColor = last ? (last.accepted || last.reason === "cooldown" || last.reason === "low_confidence" ? keywordColor(last.label) : REJECTED_COLOR) : REJECTED_COLOR;
+  const actionList = actionMap?.actions ?? actionMap?.commands ?? DEFAULT_ACTIONS;
+  // Rejected decisions (accepted:false) always use rejected styling, even for
+  // cooldown/low_confidence. The text badge still names the reason.
+  const lastColor = last ? (last.accepted ? keywordColor(last.label) : REJECTED_COLOR) : REJECTED_COLOR;
 
   return (
     <div className="page">
@@ -303,6 +305,7 @@ export function LiveSession() {
           <p>
             Press Start to open the mic. Accepted Keywords trigger in-app slide and player actions only; Unknown,
             Silence, and uncertain input are rejected and shown. Keyboard keys run the same actions.
+            Saying “stop” pauses playback only; only the Stop button ends the session and releases the mic.
           </p>
         </div>
       </div>
@@ -346,8 +349,8 @@ export function LiveSession() {
         <div className="privacy">
           <LockIcon size={14} />
           Mic audio is scored in memory in 1 s windows and discarded. No raw mic audio is recorded or stored; only
-          decision metadata (label, Confidence, action) is logged. Stop, a lost connection, or hiding this tab releases
-          the mic at once.
+          decision metadata (label, Confidence, action) is logged. Pressing the Stop button, a lost connection,
+          or hiding this tab releases the mic at once. Saying “stop” only pauses playback.
         </div>
       </section>
 
@@ -370,27 +373,27 @@ export function LiveSession() {
         <div className="stage">
           <SlideDeck stage={stage} flash={flash?.action ?? null} direction={direction} onAction={manual} />
           <Player stage={stage} flash={flash?.action ?? null} onAction={manual} />
-          <section className="card" aria-labelledby="commands-title">
+          <section className="card" aria-labelledby="actions-title">
             <div className="card-head">
-              <h3 id="commands-title">Command map</h3>
+              <h3 id="actions-title">Action map</h3>
               <span className="sub">
                 Allowlist · {policy ? `threshold ${policy.threshold} · ${policy.min_consecutive} windows in a row · cooldown ${policy.cooldown_s} s` : "loading policy"}
               </span>
             </div>
             <div className="commands">
-              {commandList.map((command) => {
-                const action = command.action as Action;
+              {actionList.map((mapping) => {
+                const action = mapping.action as Action;
                 return (
                   <button
-                    key={command.keyword}
+                    key={mapping.keyword}
                     type="button"
-                    className={`command${flash?.keyword === command.keyword ? " flash" : ""}${locked ? " locked" : ""}`}
-                    style={{ "--kw": keywordColor(command.keyword) } as CSSProperties}
+                    className={`command${flash?.keyword === mapping.keyword ? " flash" : ""}${locked ? " locked" : ""}`}
+                    style={{ "--kw": keywordColor(mapping.keyword) } as CSSProperties}
                     onClick={() => manual(action)}
-                    aria-label={`${command.label}: say ${command.keyword} or press ${KEY_LABELS[action]}`}
+                    aria-label={`${mapping.label}: say ${mapping.keyword} or press ${KEY_LABELS[action]}`}
                   >
-                    <span className="kw-name">“{command.keyword}”</span>
-                    <span className="act">{command.label}</span>
+                    <span className="kw-name">“{mapping.keyword}”</span>
+                    <span className="act">{mapping.label}</span>
                     <span className="kbd">{KEY_LABELS[action]}</span>
                   </button>
                 );
@@ -430,7 +433,7 @@ export function LiveSession() {
                 <span className="value">{last ? formatScore(last.score) : "—"}</span>
               </span>
             </div>
-            <p className="reason">{last ? REASON_COPY[last.reason] : listening ? "Say one of the six Keywords." : "Start the mic, or use the keys below."}</p>
+            <p className="reason">{last ? (REASON_COPY[last.reason] ?? `Rejected: ${last.reason}`) : listening ? "Say one of the six Keywords." : "Start the mic, or use the keys below."}</p>
             {last?.result ? (
               <p className="result"><CheckIcon size={16} /> {last.result} <span className="tag">{last.processing_ms.toFixed(0)} ms window → decision</span></p>
             ) : null}
@@ -450,7 +453,7 @@ export function LiveSession() {
                   <li
                     key={entry.key}
                     className={entry.accepted && entry.source === "voice" ? "accepted" : undefined}
-                    style={{ "--kw": entry.source === "voice" && (entry.accepted || entry.reason === "cooldown" || entry.reason === "low_confidence") ? keywordColor(entry.label) : REJECTED_COLOR } as CSSProperties}
+                    style={{ "--kw": entry.source === "voice" && entry.accepted ? keywordColor(entry.label) : REJECTED_COLOR } as CSSProperties}
                   >
                     <span className="h-label">{entry.label}</span>
                     <span className="h-detail">

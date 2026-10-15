@@ -43,6 +43,27 @@ test("server messages are validated; actions only ride accepted decisions", () =
   assert.deepEqual(parseServerMessage(JSON.stringify({ type: "stopped", extra: 1 })), { type: "stopped" });
 });
 
+test("decisions with custom non-action labels round-trip instead of dropping", () => {
+  const custom = {
+    type: "decision", id: 7, t_s: 2.0, label: "yes", score: 0.95, accepted: false,
+    reason: "yes", action: null, processing_ms: 3,
+  };
+  assert.deepEqual(parseServerMessage(JSON.stringify(custom)), custom);
+  const accepted = {
+    type: "decision", id: 8, t_s: 2.25, label: "go", score: 0.9, accepted: true,
+    reason: "accepted", action: "play", processing_ms: 4,
+  };
+  assert.deepEqual(parseServerMessage(JSON.stringify(accepted)), accepted);
+  // Inconsistent pairs still fail: action only rides accepted decisions.
+  assert.equal(
+    parseServerMessage(JSON.stringify({ ...custom, accepted: true })),
+    null,
+  );
+  assert.equal(
+    parseServerMessage(JSON.stringify({ ...accepted, reason: "yes" })),
+    null,
+  );
+});
 test("mic failures map to distinct recoverable states", () => {
   const error = (name) => Object.assign(new Error("x"), { name });
   assert.equal(micErrorCode(error("NotAllowedError"), "prompt"), "mic_denied");

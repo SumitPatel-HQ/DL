@@ -14,7 +14,12 @@ from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 from test_recordings import configured, open_client
 
-from app.services.live import COMMANDS, LiveDecider, LivePolicy, LiveStream
+from app.services.live import (
+    KEYWORD_ACTIONS,
+    LiveDecider,
+    LivePolicy,
+    LiveStream,
+)
 from app.settings import Settings
 from ml.features import LABELS
 
@@ -34,8 +39,8 @@ def run(decider: LiveDecider, windows: list[tuple[str, float]], start: float = 1
     return decisions
 
 
-def test_commands_are_a_strict_allowlist_of_in_app_actions() -> None:
-    assert {command.keyword: command.action for command in COMMANDS} == {
+def test_actions_are_a_strict_allowlist_of_in_app_actions() -> None:
+    assert {mapping.keyword: mapping.action for mapping in KEYWORD_ACTIONS} == {
         "right": "next_slide",
         "left": "previous_slide",
         "go": "play",
@@ -82,6 +87,29 @@ def test_unknown_and_silence_are_rejected_once_per_run() -> None:
         ("unknown", False, "unknown", None),
         ("silence", False, "silence", None),
     ]
+
+
+def test_custom_non_action_labels_emit_their_label_as_reason_for_frontend() -> None:
+    labels = ("go", "yes", "unknown", "silence")
+    decider = LiveDecider(POLICY, labels)
+    by_index = {name: i for i, name in enumerate(labels)}
+
+    def custom(label: str, score: float) -> list[float]:
+        rest = (1 - score) / (len(labels) - 1)
+        return [score if name == label else rest for name in labels]
+
+    decisions = []
+    for i, (label, score) in enumerate([("yes", 0.95)] * 3):
+        decisions += decider.observe(1.0 + i * POLICY.hop_s, custom(label, score))
+    assert [(d.label, d.accepted, d.reason, d.action) for d in decisions] == [
+        ("yes", False, "yes", None)
+    ]
+    # Frontend contract: rejected decisions carry action None and a non-empty
+    # reason that is never "accepted"; accepted decisions carry reason "accepted".
+    for d in decisions:
+        assert d.action is None and not d.accepted
+        assert isinstance(d.reason, str) and d.reason and d.reason != "accepted"
+    assert by_index["yes"] == 1
 
 
 def test_reset_ends_the_utterance_but_keeps_cooldown() -> None:
@@ -167,13 +195,16 @@ def until_decision(socket: Any, rate: int = 16000, hops: int = 8) -> dict[str, A
 def test_accepted_keyword_drives_one_action_and_stores_no_audio(tmp_path: Path) -> None:
     settings = configured(tmp_path, label=LABELS.index("go"))
     with open_client(settings) as client:
-        commands = client.get("/api/commands").json()
-        assert [c["keyword"] for c in commands["commands"]] == [c.keyword for c in COMMANDS]
-        assert commands["rejected_labels"] == ["unknown", "silence"]
+        actions = client.get("/api/actions").json()
+        assert [c["keyword"] for c in actions["actions"]] == [c.keyword for c in KEYWORD_ACTIONS]
+        assert actions["rejected_labels"] == ["unknown", "silence"]
+        legacy = client.get("/api/commands").json()
+        assert [c["keyword"] for c in legacy["commands"]] == [c.keyword for c in KEYWORD_ACTIONS]
         with client.websocket_connect(LIVE) as socket:
             socket.send_json(start())
             ready = until(socket, "ready")
             assert ready["keywords"] == ["left", "right", "up", "down", "go", "stop"]
+            assert [c["keyword"] for c in ready["actions"]] == [c.keyword for c in KEYWORD_ACTIONS]
             decision = until_decision(socket)
             assert decision["label"] == "go"
             assert decision["accepted"] is True

@@ -81,8 +81,8 @@ def validation_pass(
     with torch.inference_mode():
         logits = model(features)
         loss = float(nn.functional.cross_entropy(logits, labels))
-    predictions = logits.argmax(dim=1).numpy().astype(np.int64)
-    matrix = confusion_matrix(labels.numpy().astype(np.int64), predictions, len(LABELS))
+    detected = logits.argmax(dim=1).numpy().astype(np.int64)
+    matrix = confusion_matrix(labels.numpy().astype(np.int64), detected, len(LABELS))
     return loss, classification_report(matrix, LABELS)
 
 

@@ -1,7 +1,9 @@
-"""Versioned live mic WebSocket and the command map. Loopback, explicit start only.
+"""Versioned live mic WebSocket and the action map. Loopback, explicit start only.
 
-The browser opens this socket only after the user presses Start. Stop, close,
-or disconnect ends the session at once; nothing keeps listening afterwards.
+The browser opens this socket only after the user presses Start. The Stop
+button (control message), close, or disconnect ends the session at once;
+saying the Keyword "stop" triggers the pause action only and never ends
+the session. Nothing keeps listening afterwards.
 """
 
 import asyncio
@@ -36,8 +38,14 @@ def service(request: Request) -> LiveService:
     return result
 
 
-@router.get("/commands")
-def commands(live: Annotated[LiveService, Depends(service)]) -> dict[str, Any]:
+@router.get("/actions")
+def actions(live: Annotated[LiveService, Depends(service)]) -> dict[str, Any]:
+    return live.action_map()
+
+
+@router.get("/commands", include_in_schema=False)
+def commands_legacy(live: Annotated[LiveService, Depends(service)]) -> dict[str, Any]:
+    """Deprecated alias for GET /api/actions. Kept for backward compatibility."""
     return live.command_map()
 
 
@@ -120,6 +128,7 @@ async def live(socket: WebSocket) -> None:
                 "version": PROTOCOL_VERSION,
                 "session_id": session,
                 "keywords": list(KEYWORDS),
+                "actions": live.action_map()["actions"],
                 "commands": live.command_map()["commands"],
                 "policy": live.policy.to_dict(),
             }

@@ -94,7 +94,7 @@ continuous-event numbers never share a response:
 
 - `isolated`: `metrics` has `examples`, `accuracy`, `macro_f1`, `per_class`
   (label order, with `support`), and `confusion_matrix` (`labels`, rows `true`,
-  columns `predicted`, counts). `training` has epochs, `best_epoch`, and per-epoch
+  columns `detected`, counts). `training` has epochs, `best_epoch`, and per-epoch
   `curves` of train/validation loss and accuracy plus validation macro-F1.
 - `continuous` (`experimental: true`): `metrics` has `detections`, hit/false/miss
   counts, event `precision`, `recall`, `f1`, `false_alarms` (`count`,
@@ -158,10 +158,12 @@ audio is stored.
 
 | Method | Route | Response |
 | --- | --- | --- |
-| GET | `/api/commands` | Keyword-to-action allowlist, rejected labels, live policy, protocol limits |
+| GET | `/api/actions` | Keyword-to-action allowlist, rejected labels, live policy, protocol limits |
 | WebSocket | `/api/live` | One explicit mic session; versioned JSON control plus binary PCM frames |
 
-The command map is a strict allowlist of in-app demo actions
+`GET /api/commands` remains as a deprecated alias for `GET /api/actions`.
+
+The action map is a strict allowlist of in-app demo actions
 ([ADR-0004](adr/0004-in-app-actions-only.md)): `right` `next_slide`, `left`
 `previous_slide`, `go` `play`, `stop` `pause`, `up` `volume_up`, `down`
 `volume_down`. Unknown and Silence never map to an action. Nothing reaches the OS.
@@ -170,7 +172,7 @@ The browser opens the socket only after the user presses Start
 ([ADR-0003](adr/0003-local-websocket-mic.md)). Origins follow the HTTP allowlist;
 other browser origins are refused before the handshake. Within 5 seconds the client
 sends `{"type":"start","version":1,"sample_rate":48000,"channels":1,"encoding":"pcm_s16le"}`.
-The server replies `ready` with a session ID, Keywords, commands, and policy, or an
+The server replies `ready` with a session ID, Keywords, actions, and policy, or an
 `error` message followed by close: `invalid_message` and `unsupported_version` (1008),
 `unsupported_audio` (1003, mono PCM_s16le at 8-96 kHz only), the model-unavailable
 codes from health (1011), or `live_busy` (1013; one session at a time).
@@ -193,8 +195,10 @@ queueing it, ends the current utterance without a decision (cooldown is kept), a
 sends `backpressure` with `dropped_s`. A malformed or oversized frame closes the
 session with `invalid_frame` (1009). The client reports each in-app result with
 `{"type":"action_result","decision_id":N,"status":"applied"|"no_change"}`.
-`{"type":"stop"}` returns `stopped` and closes with 1000. Stop, close, or disconnect
-ends the session immediately and frees its in-memory audio.
+`{"type":"stop"}` returns `stopped` and closes with 1000. Pressing the Stop
+button, tab-hide, page exit, close, or disconnect ends the session immediately
+and frees its in-memory audio. Saying the Keyword "stop" triggers the pause
+action only; it never ends the session.
 
 Each decision is stored in `live_events` as session ID, label, Confidence, accepted
 flag, action, and action status (`dispatched`, then the reported result). Raw mic

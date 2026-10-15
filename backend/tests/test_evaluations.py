@@ -134,7 +134,7 @@ def test_run_detail_comes_from_that_run_alone(tmp_path: Path) -> None:
             "unknown",
             "silence",
         ]
-        assert (matrix["rows"], matrix["columns"]) == ("true", "predicted")
+        assert (matrix["rows"], matrix["columns"]) == ("true", "detected")
         assert sum(map(sum, matrix["values"])) == 1017
         assert e02["training"]["best_epoch"] == 10
         assert len(e02["training"]["curves"]) == 20
@@ -328,3 +328,24 @@ def test_store_from_before_evaluation_api_upgrades_reserved_table(tmp_path: Path
         assert len(client.get("/api/evaluations").json()["runs"]) == 6
     with open_client(config) as client:
         assert len(client.get("/api/evaluations").json()["runs"]) == 6
+
+
+def test_legacy_predicted_columns_are_accepted_and_returned_as_detected(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "evaluations"
+    document = committed("e02-test.json")
+    assert document["metrics"]["confusion_matrix"]["columns"] == "predicted"
+    write(root, "a/legacy.json", document)
+    with open_client(settings(tmp_path, root)) as client:
+        assert client.post("/api/evaluations/import").json()["imported"] == [
+            "e02-isolated-test-e47e49f57e81"
+        ]
+        detail = client.get("/api/evaluations/e02-isolated-test-e47e49f57e81").json()
+        assert (
+            detail["metrics"]["confusion_matrix"]["rows"],
+            detail["metrics"]["confusion_matrix"]["columns"],
+        ) == (
+            "true",
+            "detected",
+        )

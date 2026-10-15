@@ -121,10 +121,10 @@ def test_window_scoring_uses_the_shared_pipeline_per_window(loaded: LoadedModel)
 
 def test_event_matching_is_one_to_one_same_keyword_within_tolerance() -> None:
     references = [("go", 0.0), ("go", 0.8), ("up", 3.0)]
-    predictions = [("go", 0.45), ("go", 1.3), ("go", 1.35), ("left", 3.0), ("up", 3.5)]
+    detections = [("go", 0.45), ("go", 1.3), ("go", 1.35), ("left", 3.0), ("up", 3.5)]
     # Nearest-pair-first would give 0.45 to the 0.8 reference and miss the first one.
-    assert match_events(references, predictions, 0.6) == [(0, 0), (1, 1), (2, 4)]
-    assert match_events(references, predictions, 0.4) == [(1, 0)]
+    assert match_events(references, detections, 0.6) == [(0, 0), (1, 1), (2, 4)]
+    assert match_events(references, detections, 0.4) == [(1, 0)]
 
 
 def test_event_metrics_and_false_alarm_rate_math() -> None:

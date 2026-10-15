@@ -25,22 +25,24 @@ ACTION_STATUSES = ("applied", "no_change")
 
 
 @dataclass(frozen=True)
-class Command:
+class KeywordAction:
     keyword: str
     action: str
     label: str
 
 
 # The only actions a Keyword can trigger. Each maps to one in-app demo function.
-COMMANDS = (
-    Command("right", "next_slide", "Next slide"),
-    Command("left", "previous_slide", "Previous slide"),
-    Command("go", "play", "Play"),
-    Command("stop", "pause", "Pause"),
-    Command("up", "volume_up", "Volume up"),
-    Command("down", "volume_down", "Volume down"),
+# Voice "stop" triggers the pause action only; it never ends the session.
+# Only the Stop button (control message), close, or disconnect ends the session.
+KEYWORD_ACTIONS = (
+    KeywordAction("right", "next_slide", "Next slide"),
+    KeywordAction("left", "previous_slide", "Previous slide"),
+    KeywordAction("go", "play", "Play"),
+    KeywordAction("stop", "pause", "Pause"),
+    KeywordAction("up", "volume_up", "Volume up"),
+    KeywordAction("down", "volume_down", "Volume down"),
 )
-ACTIONS = {command.keyword: command.action for command in COMMANDS}
+ACTION_BY_KEYWORD = {mapping.keyword: mapping.action for mapping in KEYWORD_ACTIONS}
 
 
 @dataclass(frozen=True)
@@ -99,7 +101,7 @@ class LiveDecider:
         label, score = self.labels[index], float(scores[index])
         decisions = []
         if label != self.run_label:
-            if self.run_label in ACTIONS and not self.decided:
+            if self.run_label in ACTION_BY_KEYWORD and not self.decided:
                 decisions.append(
                     Decision(self.last_s, self.run_label, self.best, False, "low_confidence", None)
                 )
@@ -109,7 +111,7 @@ class LiveDecider:
         self.best = max(self.best, score)
         if self.decided:
             return decisions
-        if label not in ACTIONS:
+        if label not in ACTION_BY_KEYWORD:
             self.decided = True
             decisions.append(Decision(t_s, label, score, False, label, None))
             return decisions
@@ -121,7 +123,9 @@ class LiveDecider:
                 decisions.append(Decision(t_s, label, self.best, False, "cooldown", None))
             else:
                 self.last_accept_s = t_s
-                decisions.append(Decision(t_s, label, self.best, True, "accepted", ACTIONS[label]))
+                decisions.append(
+                    Decision(t_s, label, self.best, True, "accepted", ACTION_BY_KEYWORD[label])
+                )
         return decisions
 
 
@@ -184,10 +188,10 @@ class LiveService:
         self.policy = policy or LivePolicy()
         self.active = False
 
-    def command_map(self) -> dict[str, Any]:
+    def action_map(self) -> dict[str, Any]:
         return {
             "version": PROTOCOL_VERSION,
-            "commands": [asdict(command) for command in COMMANDS],
+            "actions": [asdict(mapping) for mapping in KEYWORD_ACTIONS],
             "rejected_labels": ["unknown", "silence"],
             "policy": self.policy.to_dict(),
             "protocol": {
@@ -199,6 +203,11 @@ class LiveService:
             },
             "retention": "No raw mic audio is stored. Decisions are stored as metadata only.",
         }
+
+    def command_map(self) -> dict[str, Any]:
+        """Deprecated alias for GET /api/commands. Returns the legacy shape."""
+        payload = self.action_map()
+        return {**payload, "commands": payload["actions"]}
 
     def unavailable(self) -> str | None:
         health = self.recordings.model_health()

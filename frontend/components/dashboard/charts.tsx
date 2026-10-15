@@ -171,7 +171,7 @@ export function Legend({ series }: { series: Series[] }) {
   );
 }
 
-// Rows are actual classes, columns predicted. Ink is the row share (recall view).
+// Rows are actual classes, columns detected. Ink is the row share (recall view).
 export function ConfusionMatrix({
   labels,
   values,
@@ -189,18 +189,18 @@ export function ConfusionMatrix({
         const count = values[focus.row][focus.col];
         return (
           <>
-            Actual <b>{labels[focus.row]}</b> predicted as <b>{labels[focus.col]}</b>: {count} of {total} (
+            Actual <b>{labels[focus.row]}</b> detected as <b>{labels[focus.col]}</b>: {count} of {total} (
             {formatPercent(total ? count / total : 0)} of actual {labels[focus.row]})
           </>
         );
       })()
-    : "Hover or focus a cell for its count and share. Diagonal cells (outlined) are correct predictions.";
+    : "Hover or focus a cell for its count and share. Diagonal cells (outlined) are correct detections.";
   return (
     <div style={{ display: "grid", gap: 10 }}>
       <div className="table-wrap">
         <table className="cm-table">
           <caption className="sr-only">
-            Confusion matrix. Rows are actual classes, columns are predicted classes. Values are {mode === "share" ? "row shares" : "counts"}.
+            Confusion matrix. Rows are actual classes, columns are detected classes. Values are {mode === "share" ? "row shares" : "counts"}.
           </caption>
           <thead>
             <tr>
@@ -230,7 +230,7 @@ export function ConfusionMatrix({
                       onMouseEnter={() => setFocus({ row: r, col: c })}
                       onFocus={() => setFocus({ row: r, col: c })}
                       onMouseLeave={() => setFocus(null)}
-                      aria-label={`Actual ${labels[r]}, predicted ${labels[c]}: ${count}, ${formatPercent(share)} of row`}
+                      aria-label={`Actual ${labels[r]}, detected ${labels[c]}: ${count}, ${formatPercent(share)} of row`}
                     >
                       {mode === "share" ? (share === 0 ? "·" : Math.round(share * 100)) : count}
                     </td>

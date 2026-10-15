@@ -93,8 +93,16 @@ class ClassMetrics(Document):
 
 class ConfusionMatrix(Document):
     rows: Literal["true"]
-    columns: Literal["predicted"]
+    # Canonical columns label is "detected" per CONTEXT.md Detection vocabulary.
+    # "predicted" is accepted on import for committed runs and normalized.
+    columns: Literal["detected", "predicted"]
     values: list[list[Count]]
+
+    @model_validator(mode="after")
+    def canonical_columns(self) -> "ConfusionMatrix":
+        if self.columns != "detected":
+            object.__setattr__(self, "columns", "detected")
+        return self
 
 
 class IsolatedMetrics(Document):
@@ -380,6 +388,7 @@ class EvaluationService:
         detail["experimental"] = isinstance(run, ContinuousRun)
         if isinstance(run, IsolatedRun):
             metrics = run.metrics
+            detail["labels"] = run.labels
             detail["metrics"] = {
                 "examples": metrics.examples,
                 "accuracy": metrics.accuracy,

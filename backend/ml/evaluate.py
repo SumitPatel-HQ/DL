@@ -66,9 +66,9 @@ def evaluate(
     if dataset != trained_on:
         raise ValueError("Cache does not match the checkpoint's manifest or normalization")
     probabilities = loaded.probabilities(cached.features)
-    predictions = probabilities.argmax(axis=1).astype(np.int64)
+    detected = probabilities.argmax(axis=1).astype(np.int64)
     report = classification_report(
-        confusion_matrix(cached.labels, predictions, len(loaded.labels)), loaded.labels
+        confusion_matrix(cached.labels, detected, len(loaded.labels)), loaded.labels
     )
     eval_seconds = time.perf_counter() - started
     latency = single_window_latency(loaded, cached.features[0], latency_runs)
@@ -177,7 +177,7 @@ def main() -> None:
                 f"  {label:<8} P {row['precision']:.3f} R {row['recall']:.3f} "
                 f"F1 {row['f1']:.3f} n={row['support']}"
             )
-        print("  confusion (rows true, columns predicted):")
+        print("  confusion (rows true, columns detected):")
         for label, row in zip(result["labels"], metrics["confusion_matrix"]["values"], strict=True):
             print(f"  {label:<8} {' '.join(f'{v:4d}' for v in row)}")
     else:

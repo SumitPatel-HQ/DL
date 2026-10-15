@@ -49,7 +49,7 @@ export function runsFor(
     );
 }
 
-// Each row becomes "of the actual class, where did predictions go".
+// Each row becomes "of the actual class, where did detections go".
 export function rowNormalize(values: readonly (readonly number[])[]): number[][] {
   return values.map((row) => {
     const total = row.reduce((sum, count) => sum + count, 0);
