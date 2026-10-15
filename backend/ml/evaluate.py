@@ -185,6 +185,31 @@ def compare(runs: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def noise_summary(run: dict[str, Any]) -> dict[str, Any]:
+    metrics = run["metrics"]
+    if run["kind"] == "continuous":
+        headline = {
+            "precision": metrics["precision"],
+            "recall": metrics["recall"],
+            "f1": metrics["f1"],
+            "false_alarms_per_hour": metrics["false_alarms"]["per_hour"],
+        }
+    else:
+        headline = {
+            "accuracy": metrics["accuracy"],
+            "macro_f1": metrics["macro_f1"],
+            "silence_recall_by_source": metrics.get("silence_recall_by_source", {}),
+        }
+    dataset = run["dataset"]
+    return {
+        "run_id": run["run_id"],
+        "condition": dataset.get("condition", "clean"),
+        "noise_sources": dataset.get("noise_sources", []),
+        "snr_db": dataset.get("snr_db"),
+        **headline,
+    }
+
+
 def compare_noise(runs: list[dict[str, Any]]) -> dict[str, Any]:
     """Pair one clean and one noisy run that differ only in dataset condition.
 
@@ -218,7 +243,12 @@ def compare_noise(runs: list[dict[str, Any]]) -> dict[str, Any]:
         "noise_sources": sorted(
             {name for run in runs for name in run["dataset"].get("noise_sources", [])}
         ),
-        "runs": sorted(runs, key=lambda run: run["dataset"].get("condition", "clean") != "clean"),
+        "runs": [
+            noise_summary(run)
+            for run in sorted(
+                runs, key=lambda run: run["dataset"].get("condition", "clean") != "clean"
+            )
+        ],
     }
 
 

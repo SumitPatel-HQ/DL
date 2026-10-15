@@ -146,7 +146,9 @@ def test_noise_pair_shares_checkpoint_and_protocol_and_reports_silence_per_sourc
     )
     comparison = compare_noise([noisy, clean])
     assert comparison["comparison_type"] == "noise"
-    assert [run["dataset"]["condition"] for run in comparison["runs"]] == ["clean", "noisy"]
+    assert [run["condition"] for run in comparison["runs"]] == ["clean", "noisy"]
+    assert comparison["runs"][1]["macro_f1"] == noisy["metrics"]["macro_f1"]
+    assert comparison["runs"][1]["snr_db"] == 10.0
     assert comparison["noise_sources"] == noisy["dataset"]["noise_sources"]
 
 
@@ -181,6 +183,13 @@ def test_continuous_noise_comparison_requires_the_same_frozen_detector() -> None
     def run(condition: str, **detector_changes: Any) -> dict[str, Any]:
         return {
             "kind": "continuous",
+            "run_id": f"continuous-{condition}",
+            "metrics": {
+                "precision": 0.1,
+                "recall": 0.2,
+                "f1": 0.13,
+                "false_alarms": {"per_hour": 5.0},
+            },
             "checkpoint": {"sha256": "a" * 64},
             "detector": {**detector, **detector_changes},
             "dataset": {
@@ -194,6 +203,7 @@ def test_continuous_noise_comparison_requires_the_same_frozen_detector() -> None
 
     paired = compare_noise([run("noisy"), run("clean")])
     assert paired["noise_sources"] == ["white_noise"]
+    assert [row["condition"] for row in paired["runs"]] == ["clean", "noisy"]
     with pytest.raises(ValueError, match="config differs"):
         compare_noise([run("clean"), run("noisy", config={"threshold": 0.9})])
     with pytest.raises(ValueError, match="tolerance_s differs"):
