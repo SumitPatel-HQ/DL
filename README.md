@@ -5,11 +5,16 @@ Ticket 1 provides the API health contract, Next.js shell and CPU-only tooling.
 Ticket 2 adds Speech Commands subset manifests, speaker-disjoint splits, cached
 MFCC features, train-only normalization and continuous-annotation validation.
 See [data preparation and collection instructions](docs/data/README.md).
-Natural continuous-speech collection and annotation remain pending.
+Natural continuous speech comes from automatically annotated AMI meetings.
 Ticket 3 adds CPU LSTM training, self-describing checkpoints and isolated
 Evaluation Runs. See [E01 vs E02 results](docs/evaluations/isolated-v1/README.md):
-E02 reaches test macro-F1 0.740, below the 0.85 target. Audio analysis, microphone
-sessions, persistence and continuous-event evaluation are not implemented yet.
+E02 reaches test macro-F1 0.740, below the 0.85 target.
+Ticket 4 adds the experimental sliding-window detector and the continuous-event
+gate. See [continuous results](docs/evaluations/continuous-v1/README.md): on held-out
+natural AMI speech, event-F1 is 0.007 with 1,559 false alarms/hour. The gate
+decision is no-go for continuous spotting as a working feature
+([ADR-0006](docs/adr/0006-sliding-window-gate-no-go.md)). Audio analysis,
+microphone sessions and persistence are not implemented yet.
 
 ## Setup on Windows
 
@@ -86,6 +91,20 @@ whose manifest or normalization differ from the checkpoint. It reports macro-F1,
 per-class precision/recall/F1 including Unknown and Silence, the confusion
 matrix, training curves, CPU latency and peak RAM. `ml.evaluate compare` refuses
 runs from different splits. Choose between models on validation, not test.
+
+## Continuous-event evaluation
+
+From `backend/`, tune the detector on validation, then run the frozen detector once on test:
+
+```powershell
+uv run --locked python -m ml.evaluate_continuous tune --checkpoint ../artifacts/models/e02/model.pt --root ../data/continuous-ami --isolated-manifest ../data/isolated/manifest.json --output ../artifacts/evaluations/detector-e02.json
+uv run --locked python -m ml.evaluate_continuous run --checkpoint ../artifacts/models/e02/model.pt --root ../data/continuous-ami --isolated-manifest ../data/isolated/manifest.json --detector ../artifacts/evaluations/detector-e02.json --split test --output ../artifacts/evaluations/e02-continuous-test.json
+```
+
+`tune` accepts validation Recordings only. `run` refuses a detector tuned for
+another checkpoint or tolerance, or tuned on Recordings that overlap test. It
+reports event precision, recall and F1 with the ±0.5 s center-tolerance rule. It
+also reports false alarms/hour on annotated negatives and an error review.
 
 ## Checks and reproducibility
 
