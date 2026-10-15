@@ -36,7 +36,12 @@ npm run web
 ```
 
 Open http://127.0.0.1:3000. The API serves http://127.0.0.1:8000/api/health
-and API docs at http://127.0.0.1:8000/docs. Both launch commands bind to loopback.
+and API docs at http://127.0.0.1:8000/docs. Both launch commands bind to IPv4
+loopback, `127.0.0.1`. The API launcher fixes port 8000; the web dev/start commands
+default to port 3000. Use these IPv4 addresses, not `localhost` or `[::1]`.
+`API_BASE_URL` accepts only `http://127.0.0.1:8000` with an optional trailing slash.
+The backend also filters HTTP Host headers to `127.0.0.1`. That filter is separate
+from socket binding; its TestClient test does not prove the listening address.
 Stop each with Ctrl+C. If port 3000 is occupied, Next.js reports its alternate port.
 The web server fetches API health directly; no browser CORS configuration is needed.
 Optional server-side configuration is documented in `frontend/.env.example`.
@@ -46,6 +51,10 @@ Optional server-side configuration is documented in `frontend/.env.example`.
 HTTP 200 from `/api/health` means the API is running. The separate model status is
 `unavailable`, with code `checkpoint_not_installed` and an explicit `setup_action`.
 No trained labels are advertised. A disconnected API has a distinct web-page state.
+The frontend also accepts `model.status: "ready"` with `code: "model_ready"` and
+displays "Model ready". This defines the future response contract; the scaffold
+backend continues to return unavailable. Unavailable responses require
+`code: "checkpoint_not_installed"` and a string `setup_action`.
 
 Complete [ticket 3](docs/P0_tickets/03-train-isolated-eval.md) to train and install
 a compatible checkpoint plus ordered labels and feature metadata in
@@ -56,7 +65,8 @@ reporting a model ready.
 ## Checks and reproducibility
 
 `npm run check` runs Ruff lint and format checks, strict Python typechecking,
-TypeScript ESLint and typechecking, and the full pytest suite. CI runs the same
+TypeScript ESLint and typechecking, health-client contract tests using Node's test
+runner, and the full pytest suite. CI runs the same
 command on Windows and also builds the frontend. To run one test file:
 
 ```powershell

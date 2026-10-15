@@ -20,6 +20,7 @@ def main() -> None:
         (["uv", "run", "--locked", "mypy"], ROOT / "backend"),
         (["npm", "run", "lint"], ROOT / "frontend"),
         (["npm", "run", "typecheck"], ROOT / "frontend"),
+        (["npm", "test"], ROOT / "frontend"),
         (["uv", "run", "--locked", "pytest"], ROOT / "backend"),
     ]
     for command, directory in commands:

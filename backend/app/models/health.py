@@ -2,15 +2,13 @@ from typing import Literal
 
 from pydantic import BaseModel
 
+from app.constants import MODEL_SETUP_ACTION
+
 
 class ModelHealth(BaseModel):
     status: Literal["unavailable"] = "unavailable"
     code: Literal["checkpoint_not_installed"] = "checkpoint_not_installed"
-    setup_action: str = (
-        "Complete ticket 3 to train and install a compatible checkpoint with "
-        "class labels and feature metadata in artifacts/models/. "
-        "Model loading is not implemented in this scaffold."
-    )
+    setup_action: str = MODEL_SETUP_ACTION
 
 
 class Health(BaseModel):

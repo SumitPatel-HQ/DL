@@ -16,9 +16,15 @@ export async function ModelStatus() {
   return (
     <section aria-labelledby="status-heading" role="status">
       <p className="eyebrow">API connected</p>
-      <h2 id="status-heading">Model unavailable</h2>
-      <p>{health.model.setup_action}</p>
-      <p>No trained keywords are available.</p>
+      {health.model.status === "ready" ? (
+        <h2 id="status-heading">Model ready</h2>
+      ) : (
+        <>
+          <h2 id="status-heading">Model unavailable</h2>
+          <p>{health.model.setup_action}</p>
+          <p>No trained keywords are available.</p>
+        </>
+      )}
     </section>
   );
 }
