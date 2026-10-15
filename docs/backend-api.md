@@ -70,11 +70,21 @@ Application errors use `{"error":{"code":"...","message":"..."}}`.
 | `analysis_in_progress`, `delete_failed` | 409 |
 | `audio_unavailable` | 410 |
 | `queue_full`, `rate_limited`, `uploads_busy` | 429 |
-| `checkpoint_not_installed`, `model_incompatible`, `storage_error`, `persistence_error` | 503 |
+| `checkpoint_not_installed`, `model_incompatible`, `worker_unavailable`, `storage_error`, `persistence_error` | 503 |
 
-Worker failures use Recording status `failed` and `error_code: "analysis_failed"`.
-Public errors omit local paths and speech content. Failed audio deletion retains
-metadata for retry; a deleted Recording cannot receive late worker results.
+Worker inference failures use Recording status `failed` and `error_code: "analysis_failed"`.
+Metadata write failures use `persistence_error`. If even saving failure status is
+unavailable, readiness reports `worker_unavailable`, new analyses return 503, and
+the worker retries that status write every 250 ms before accepting more work.
+Shutdown still joins the worker if metadata remains unwritable; startup recovers
+unfinished states when storage is writable again.
+
+Public errors omit local paths and speech content. Deletion stages audio with a
+reversible rename before deleting metadata. A failed database commit restores
+playable audio; failed removal of committed staged bytes returns `delete_failed`
+and can be retried with the same DELETE request. Startup restores staged audio
+for surviving metadata and removes orphan bytes after committed deletions.
+A deleted Recording cannot receive late worker results.
 
 Host headers must name `127.0.0.1`. Browser origins are limited to
 `http://127.0.0.1:3000` and `http://localhost:3000`. CORS allows the recording

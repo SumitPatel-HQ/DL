@@ -1,12 +1,14 @@
 """One bounded analysis worker. Only generated recording IDs address local audio."""
 
 import json
+import sqlite3
 import wave
 from collections import deque
 from dataclasses import asdict
 from pathlib import Path
 from threading import Condition, Event, Thread
 from typing import Any
+from uuid import UUID
 
 import numpy as np
 
@@ -56,6 +58,9 @@ class RecordingService:
         with self.store.transaction() as db:
             owned = {row[0] for row in db.execute("SELECT audio_path FROM recordings")}
         for path in self.audio_dir.iterdir():
+            if path.name.endswith(".deleting") and path.name.removesuffix(".deleting") in owned:
+                path.replace(path.with_suffix(""))
+                continue
             if path.is_file() and path.name not in owned:
                 path.unlink()
         self.loaded: LoadedModel | None = None
@@ -92,10 +97,17 @@ class RecordingService:
         self.condition = Condition(self.store.lock)
         self.queue: deque[str] = deque()
         self.stopping = Event()
+        self.worker_error = Event()
         self.worker = Thread(target=self._work, name="kws-analysis", daemon=False)
         self.worker.start()
 
     def model_health(self) -> dict[str, Any]:
+        if self.worker_error.is_set():
+            return {
+                "status": "unavailable",
+                "code": "worker_unavailable",
+                "setup_action": "Metadata writes failed. Worker is waiting for storage recovery.",
+            }
         if self.loaded is None:
             return {
                 "status": "unavailable",
@@ -110,6 +122,10 @@ class RecordingService:
         }
 
     def active_model(self) -> dict[str, Any]:
+        if self.worker_error.is_set():
+            raise ServiceError(
+                "worker_unavailable", "Worker is waiting for metadata storage recovery.", 503
+            )
         if self.loaded is None or self.config is None:
             raise ServiceError(self.model_error, MODEL_SETUP_ACTION, 503)
         return {
@@ -129,6 +145,15 @@ class RecordingService:
             row = db.execute("SELECT * FROM recordings WHERE id=?", (recording,)).fetchone()
         if row is None:
             raise ServiceError("recording_not_found", "Recording does not exist.", 404)
+        return self._metadata(row)
+
+    def list_recordings(self) -> list[dict[str, Any]]:
+        with self.store.transaction() as db:
+            rows = db.execute("SELECT * FROM recordings ORDER BY created_at,id").fetchall()
+        return [self._metadata(row) for row in rows]
+
+    @staticmethod
+    def _metadata(row: sqlite3.Row) -> dict[str, Any]:
         result = dict(row)
         result.pop("audio_path")
         result["keywords"] = json.loads(result.pop("keywords_json") or "[]")
@@ -211,37 +236,78 @@ class RecordingService:
 
     def delete(self, recording: str) -> None:
         with self.condition:
-            self.get(recording)
-            # The worker closes the source before inference and checks existence before saving.
+            # Validate IDs before addressing staged bytes for a previously committed deletion.
             try:
-                self.audio_path(recording).unlink(missing_ok=True)
+                if UUID(recording).hex != recording:
+                    raise ValueError("Noncanonical ID")
+            except ValueError as exc:
+                raise ServiceError("recording_not_found", "Recording does not exist.", 404) from exc
+            path = self.audio_dir / f"{recording}.wav"
+            staged = path.with_suffix(".wav.deleting")
+            try:
+                try:
+                    self.get(recording)
+                except ServiceError:
+                    if staged.is_file():
+                        staged.unlink()
+                        return
+                    raise
+                if path.is_file():
+                    path.replace(staged)
+                try:
+                    with self.store.transaction() as db:
+                        db.execute("DELETE FROM recordings WHERE id=?", (recording,))
+                except Exception:
+                    if staged.is_file():
+                        staged.replace(path)
+                    raise
+                if recording in self.queue:
+                    self.queue.remove(recording)
+                staged.unlink(missing_ok=True)
             except OSError as exc:
                 raise ServiceError(
                     "delete_failed", "Audio could not be removed; retry deletion.", 409
                 ) from exc
-            with self.store.transaction() as db:
-                db.execute("DELETE FROM recordings WHERE id=?", (recording,))
-            if recording in self.queue:
-                self.queue.remove(recording)
 
     def _work(self) -> None:
+        failed: str | None = None
         while True:
             with self.condition:
+                if self.stopping.is_set():
+                    return
+                if failed is not None:
+                    try:
+                        self._fail(failed, "persistence_error")
+                    except sqlite3.Error:
+                        self.condition.wait(timeout=0.25)
+                        continue
+                    failed = None
+                    self.worker_error.clear()
                 self.condition.wait_for(lambda: self.queue or self.stopping.is_set())
                 if self.stopping.is_set():
                     return
                 recording = self.queue.popleft()
+            try:
                 with self.store.transaction() as db:
                     db.execute("UPDATE recordings SET status='running' WHERE id=?", (recording,))
-            try:
                 self._infer(recording)
-            except Exception:
-                with self.store.transaction() as db:
-                    db.execute(
-                        "UPDATE recordings SET status='failed',error_code='analysis_failed' "
-                        "WHERE id=?",
-                        (recording,),
+            except Exception as exc:
+                try:
+                    self._fail(
+                        recording,
+                        "persistence_error"
+                        if isinstance(exc, sqlite3.Error)
+                        else "analysis_failed",
                     )
+                except sqlite3.Error:
+                    failed = recording
+                    self.worker_error.set()
+
+    def _fail(self, recording: str, code: str) -> None:
+        with self.store.transaction() as db:
+            db.execute(
+                "UPDATE recordings SET status='failed',error_code=? WHERE id=?", (code, recording)
+            )
 
     def _infer(self, recording: str) -> None:
         assert self.loaded is not None and self.config is not None
@@ -303,9 +369,14 @@ class RecordingService:
             self.queue.clear()
             self.condition.notify()
         self.worker.join()
-        with self.store.transaction() as db:
-            db.execute(
-                "UPDATE recordings SET status='failed',error_code='service_interrupted' "
-                "WHERE status IN ('running','queued')"
-            )
-        self.store.close()
+        try:
+            with self.store.transaction() as db:
+                db.execute(
+                    "UPDATE recordings SET status='failed',error_code='service_interrupted' "
+                    "WHERE status IN ('running','queued')"
+                )
+        except sqlite3.Error:
+            # Startup recovers persisted queued/running states when storage is writable again.
+            pass
+        finally:
+            self.store.close()

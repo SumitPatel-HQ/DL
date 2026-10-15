@@ -3,6 +3,7 @@
 import asyncio
 import io
 import json
+import sqlite3
 import time
 import wave
 from pathlib import Path
@@ -364,3 +365,107 @@ def test_incompatible_model_and_detector_do_not_advertise_readiness(tmp_path: Pa
     with TestClient(create_app(settings), base_url="http://127.0.0.1") as client:
         assert client.get("/api/health").json()["model"]["code"] == "model_incompatible"
         assert client.get("/api/models/active").status_code == 503
+
+
+def test_database_delete_failure_preserves_playable_audio(tmp_path: Path) -> None:
+    settings = configured(tmp_path)
+    with TestClient(create_app(settings), base_url="http://127.0.0.1") as client:
+        audio = wav_bytes()
+        recording = client.post("/api/recordings", files={"file": ("go.wav", audio)}).json()["id"]
+        # External SQLite fault: this deferred constraint fails at COMMIT, after DELETE runs.
+        with sqlite3.connect(settings.storage / "metadata.sqlite3") as db:
+            db.executescript("""
+                CREATE TABLE delete_fault (owner TEXT REFERENCES recordings(id)
+                    DEFERRABLE INITIALLY DEFERRED);
+                CREATE TRIGGER fail_delete AFTER DELETE ON recordings BEGIN
+                    INSERT INTO delete_fault VALUES ('missing');
+                END;
+            """)
+        result = client.delete(f"/api/recordings/{recording}")
+        assert result.status_code == 503
+        assert result.json()["error"]["code"] == "persistence_error"
+        assert client.get(f"/api/recordings/{recording}/audio").content == audio
+        with sqlite3.connect(settings.storage / "metadata.sqlite3") as db:
+            db.execute("DROP TRIGGER fail_delete")
+        assert client.delete(f"/api/recordings/{recording}").status_code == 204
+
+
+def test_staged_delete_failure_can_be_retried(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    settings = configured(tmp_path)
+    with TestClient(create_app(settings), base_url="http://127.0.0.1") as client:
+        recording = client.post("/api/recordings", files={"file": ("go.wav", wav_bytes())}).json()[
+            "id"
+        ]
+        unlink = Path.unlink
+
+        def unavailable(path: Path, missing_ok: bool = False) -> None:
+            if path.suffix == ".deleting":
+                raise PermissionError("test filesystem fault")
+            unlink(path, missing_ok=missing_ok)
+
+        with monkeypatch.context() as patch:
+            patch.setattr(Path, "unlink", unavailable)
+            result = client.delete(f"/api/recordings/{recording}")
+            assert result.status_code == 409
+            assert result.json()["error"]["code"] == "delete_failed"
+        assert client.delete(f"/api/recordings/{recording}").status_code == 204
+        assert list((settings.storage / "audio").iterdir()) == []
+
+
+def test_restart_restores_uncommitted_staged_delete_and_removes_orphans(tmp_path: Path) -> None:
+    settings = configured(tmp_path)
+    with TestClient(create_app(settings), base_url="http://127.0.0.1") as client:
+        audio = wav_bytes()
+        recording = client.post("/api/recordings", files={"file": ("go.wav", audio)}).json()["id"]
+    path = settings.storage / "audio" / f"{recording}.wav"
+    path.replace(path.with_suffix(".wav.deleting"))
+    orphan = settings.storage / "audio" / "orphan.wav.deleting"
+    orphan.write_bytes(b"uncommitted upload or committed delete")
+    with TestClient(create_app(settings), base_url="http://127.0.0.1") as client:
+        assert client.get(f"/api/recordings/{recording}/audio").content == audio
+        assert not orphan.exists()
+        assert client.delete(f"/api/recordings/{recording}").status_code == 204
+
+
+def test_status_write_failure_is_visible_and_worker_processes_next_job(tmp_path: Path) -> None:
+    settings = configured(tmp_path)
+    with TestClient(create_app(settings), base_url="http://127.0.0.1") as client:
+        recording = client.post("/api/recordings", files={"file": ("go.wav", wav_bytes())}).json()[
+            "id"
+        ]
+        with sqlite3.connect(settings.storage / "metadata.sqlite3") as db:
+            db.executescript("""
+                CREATE TRIGGER fail_status BEFORE UPDATE OF status ON recordings
+                WHEN NEW.status IN ('running','failed') BEGIN
+                    SELECT RAISE(ABORT, 'temporary test storage fault');
+                END;
+            """)
+        assert (
+            client.post(
+                f"/api/recordings/{recording}/analyze", json={"keywords": ["go"]}
+            ).status_code
+            == 202
+        )
+        deadline = time.monotonic() + 5
+        while client.get("/api/health").json()["model"]["status"] != "unavailable":
+            assert time.monotonic() < deadline
+            time.sleep(0.01)
+        rejected = client.post(f"/api/recordings/{recording}/analyze", json={"keywords": ["go"]})
+        assert rejected.status_code == 503
+        assert rejected.json()["error"]["code"] == "worker_unavailable"
+        with sqlite3.connect(settings.storage / "metadata.sqlite3") as db:
+            db.execute("DROP TRIGGER fail_status")
+        deadline = time.monotonic() + 5
+        while client.get("/api/health").json()["model"]["status"] != "ready":
+            assert time.monotonic() < deadline
+            time.sleep(0.01)
+        assert completed(client, recording)["error_code"] == "persistence_error"
+        assert (
+            client.post(
+                f"/api/recordings/{recording}/analyze", json={"keywords": ["go"]}
+            ).status_code
+            == 202
+        )
+        assert completed(client, recording)["status"] == "completed"

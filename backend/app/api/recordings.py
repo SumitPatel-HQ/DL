@@ -73,9 +73,7 @@ async def upload(request: Request, jobs: Service) -> dict[str, Any]:
 
 @router.get("/recordings")
 def recordings(jobs: Service) -> list[dict[str, Any]]:
-    with jobs.store.transaction() as db:
-        ids = [row[0] for row in db.execute("SELECT id FROM recordings ORDER BY created_at,id")]
-        return [jobs.get(recording) for recording in ids]
+    return jobs.list_recordings()
 
 
 @router.get("/recordings/{recording}")

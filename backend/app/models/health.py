@@ -7,7 +7,9 @@ from app.constants import MODEL_SETUP_ACTION
 
 class UnavailableModel(BaseModel):
     status: Literal["unavailable"] = "unavailable"
-    code: Literal["checkpoint_not_installed", "model_incompatible"] = "checkpoint_not_installed"
+    code: Literal["checkpoint_not_installed", "model_incompatible", "worker_unavailable"] = (
+        "checkpoint_not_installed"
+    )
     setup_action: str = MODEL_SETUP_ACTION
 
 
