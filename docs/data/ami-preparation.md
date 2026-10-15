@@ -103,6 +103,8 @@ pass checks the schema, event bounds/non-overlap, all eight labels per split,
 600-1200 seconds, actual WAV durations/checksums, provenance and speaker/source
 separation. It cannot prove word alignment accuracy, annotation completeness,
 correct Silence labels or strong model reliability from sparse positives.
+Each split has only one unflagged `left` and one `stop` occurrence. These sparse
+counts do not establish reliable per-class performance.
 Later Evaluation Runs must identify these as automatic reference annotations
 and preserve these limitations. Human-verified ground truth remains unavailable.
 

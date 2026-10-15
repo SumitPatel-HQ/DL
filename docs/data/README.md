@@ -1,9 +1,11 @@
 # Data preparation
 
 Ticket 2 implements isolated-word preparation and the shared feature pipeline.
-The 10–20 minute natural continuous-speech corpus has not been collected.
-Collection, manual annotation and continuous-event evaluation remain pending.
-No generated audio is offered as evidence that this requirement is complete.
+The [AMI pipeline](ami-preparation.md) prepares 20 minutes of natural speech with
+automatic reference annotations. Human verification and scoring readiness remain
+false. Inferred negatives, truncated tokens, sparse Keywords and unlabeled gaps
+remain documented limitations. The collection instructions below are optional
+for a later human-verified set. No generated audio replaces natural AMI speech.
 
 ## Speech Commands
 
@@ -55,8 +57,15 @@ Google's official benchmark partition. Cap selection happens after speaker
 assignment. Unknown words are interleaved to preserve diversity. Each noise
 recording is assigned wholesale to a split by sorted filename round-robin before
 one-second, non-overlapping segments are taken. Noise speaker IDs are explicitly
-source IDs because no speech identity is claimed. The manifest checks speaker,
-parent-source and identical-file hash leakage. Tiny inputs fail rather than
+source IDs because no speech identity is claimed. For Speech Commands, the
+speaker ID is the real speech partition boundary. New manifests record
+`source_group` as `speaker:<speaker_id>` across that speaker's word files; this
+does not prove an additional independent session/source separation. Legacy
+per-file speech groups remain readable as provenance, and validation uses the
+speaker ID rather than those file groups. For noise, `source_group` must equal
+the parent WAV path, so all of its segments stay in one split. Validation also
+checks identical-file hash leakage. Existing saved manifests and cache hashes
+are not rewritten by this metadata correction. Tiny inputs fail rather than
 silently moving speakers across splits. Caps apply per speech class and per noise
 source; the resulting dataset is not guaranteed to have balanced class counts.
 

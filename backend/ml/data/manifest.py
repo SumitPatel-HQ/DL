@@ -79,7 +79,8 @@ def build_manifest(
 ) -> Manifest:
     """Select a deterministic, capped subset after assigning speakers to splits.
 
-    Unknown uses at least three unrelated word types per split. Noise segments
+    Speech Commands groups are speaker identities, not independent recording
+    sessions. The speaker ID is the speech leakage gate. Noise segments
     never share a parent recording across splits. Noise IDs are source IDs, not
     claims that a human speaker has been identified.
     """
@@ -105,7 +106,7 @@ def build_manifest(
                 word,
                 speaker,
                 "speech",
-                relative,
+                f"speaker:{speaker}",
                 split,
                 "",
                 0,
@@ -192,11 +193,17 @@ def validate_manifest(manifest: Manifest, root: Path, *, verify_audio: bool = Fa
             (example.speaker_id, example.source_group, example.sha256)
         ):
             raise ValueError("Missing example provenance")
-        for key in (
+        # Speech Commands has no separate session/source boundary to infer from
+        # its per-word files. Legacy per-file speech groups are provenance only.
+        keys = [
             ("speaker", example.speaker_id),
-            ("source", example.source_group),
             ("audio", example.sha256),
-        ):
+        ]
+        if example.source_id != "speech":
+            if example.source_id == "noise" and example.source_group != example.path:
+                raise ValueError("Noise source_group must identify the parent recording path")
+            keys.append(("source", example.source_group))
+        for key in keys:
             if key in memberships and memberships[key] != example.split:
                 raise ValueError(f"Split leakage: {key}")
             memberships[key] = example.split
