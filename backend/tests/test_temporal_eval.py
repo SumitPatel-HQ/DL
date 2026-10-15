@@ -90,7 +90,14 @@ def test_test_run_refuses_detectors_not_frozen_on_validation(loaded: LoadedTempo
 
 
 def test_run_document_is_a_valid_experimental_continuous_run(loaded: LoadedTemporal) -> None:
-    baseline = {"run_id": "e02-continuous-test-x", "event_f1": 0.010}
+    baseline = {
+        "run_id": "e02-continuous-test-x",
+        "event_f1": 0.010,
+        "dataset_version": "ami-fixture",
+        "split_version": "split-fixture",
+        "split": "test",
+        "tolerance_s": TOLERANCE_S,
+    }
     document = run(loaded, split("test", "tst"), frozen(loaded), baseline=baseline)
     document["detector"]["file_sha256"] = "c" * 64
     assert document["kind"] == "continuous" and document["experimental"] is True
@@ -105,3 +112,17 @@ def test_run_document_is_a_valid_experimental_continuous_run(loaded: LoadedTempo
     assert isinstance(imported, ContinuousRun)
     metrics = document["metrics"]
     assert metrics["true_positive"] + metrics["false_negative"] == 6
+
+
+def test_baseline_pointer_must_match_dataset_split_and_tolerance(loaded: LoadedTemporal) -> None:
+    test = split("test", "tst")
+    good = {
+        "dataset_version": test.dataset_version,
+        "split_version": test.split_version,
+        "split": "test",
+        "tolerance_s": TOLERANCE_S,
+    }
+    run(loaded, test, frozen(loaded), baseline=good)
+    for bad in ({**good, "split": "validation"}, {**good, "tolerance_s": 1.0}):
+        with pytest.raises(ValueError, match="Baseline"):
+            run(loaded, test, frozen(loaded), baseline=bad)

@@ -39,7 +39,7 @@ Keywords. Validation event-F1 (0.278) is five times the test value, so the tuned
 operating point does not carry over to unseen speakers. Test has 16 events, so one
 hit moves recall by 0.06. Per-Keyword numbers are anecdotal.
 
-Scoring 600 s takes about 4.3 s on the development laptop (real-time factor 0.007),
+Scoring 600 s takes about 5.2 s on the development laptop (real-time factor 0.009),
 peak RSS about 0.8 GB. Speed is not the problem.
 
 ## Error review
@@ -56,6 +56,13 @@ run gives the top frame class near the reference center.
 - **Dev signal agreed.** On the held-out dev meetings the best mean Keyword frame F1
   was 0.016 (epoch 18). Frame-level scores on real meeting speech were poor before
   any test run.
+
+The training summary `t01-training.json` records `code_revision` `8589920` with `dirty: true`,
+because the checkpoint was trained before the code was committed. The checkpoint hash in the
+runs is the reproducibility anchor; the detector and both runs were regenerated from commit
+`9329dce` with a clean tree and matched byte for byte on metrics and Detections. Best-epoch
+selection (maximum dev Keyword frame F1, 0.016) is weak evidence, since the dev meetings have
+no `stop` events and epoch 22 scores the same.
 
 Probable causes: only a few hundred real Keyword tokens exist in the training
 meetings (`left` and `stop` only a handful), the labels are automatic forced

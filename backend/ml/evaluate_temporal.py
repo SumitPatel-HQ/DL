@@ -37,9 +37,17 @@ from ml.evaluate_continuous import (
     write_examples,
 )
 from ml.evaluate_continuous import check_frozen as check_frozen_detector
+from ml.features.pipeline import SAMPLE_RATE
 from ml.runtime import code_revision, peak_rss_bytes
 from ml.spotting import Detection
-from ml.temporal import LoadedTemporal, TemporalConfig, decode, load_checkpoint, posteriors
+from ml.temporal import (
+    FRAME_S,
+    LoadedTemporal,
+    TemporalConfig,
+    decode,
+    load_checkpoint,
+    posteriors,
+)
 
 DETECTOR_FORMAT = "kws-temporal-detector-v1"
 SUPPRESSION_S = 1.0
@@ -48,7 +56,6 @@ GRID: dict[str, tuple[Any, ...]] = {
     "threshold": tuple(round(0.3 + 0.05 * i, 2) for i in range(14)),
     "min_frames": (3, 5, 8, 12),
 }
-FRAME_S = 0.01
 
 
 def all_posteriors(
@@ -57,7 +64,7 @@ def all_posteriors(
     started = time.perf_counter()
     pipeline = loaded.pipeline()
     scores = {
-        r.recording_id: posteriors(loaded.model, pipeline.from_stream(r.audio, 16000))
+        r.recording_id: posteriors(loaded.model, pipeline.from_stream(r.audio, SAMPLE_RATE))
         for r in data.recordings
     }
     return scores, time.perf_counter() - started
@@ -149,6 +156,12 @@ def run(
     baseline: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     check_frozen_detector(detector, loaded, data, DETECTOR_FORMAT)
+    if baseline is not None and (
+        (baseline["dataset_version"], baseline["split_version"], baseline["split"])
+        != (data.dataset_version, data.split_version, data.split)
+        or baseline["tolerance_s"] != detector["tolerance_s"]
+    ):
+        raise ValueError("Baseline run is not on the same dataset, split and tolerance")
     config = TemporalConfig(**detector["config"])
     scores, scoring_seconds = all_posteriors(loaded, data)
     summary, detections, results = evaluate_posteriors(

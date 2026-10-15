@@ -302,9 +302,9 @@ export function ContinuousView({ run }: { run: ContinuousRun }) {
             operating point · smoothing <b>{config.smooth_frames} frames</b> · threshold <b>{config.threshold}</b> ·
             min frames <b>{config.min_frames}</b> · suppression <b>{config.suppression_s} s</b> · detector config{" "}
             <code>{detectorFile}</code>, tuned on the <b>{run.detector.tuned_on.split}</b> split only. Confidence is a
-            smoothed frame score, not correctness. Continuous runs never report accuracy. This prototype does not
-            replace the isolated classifier, and the {run.target.goal} event-F1 target is reported, never redefined.
-            See ADR-0007.
+            smoothed frame score, not correctness. Continuous runs never report accuracy. This is not reliable search of
+            natural speech. It does not replace the isolated classifier, and the {run.target.goal} event-F1 target is
+            reported, never redefined. See ADR-0007.
           </Banner>
         ) : (
           <Banner tone="experimental" title="Experimental: sliding-window detector, frozen before test">
