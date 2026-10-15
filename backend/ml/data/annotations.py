@@ -1,4 +1,4 @@
-"""Validate human annotations. This module does not create speech or labels."""
+"""Validate event structure and provenance. A pass does not establish label accuracy."""
 
 import argparse
 import csv
@@ -115,13 +115,44 @@ def validate_annotations(
     for recording in recordings:
         rows = sorted(grouped[recording.recording_id], key=lambda e: e.start_s)
         if not rows:
-            raise ValueError("Every recording needs reviewed annotations")
+            raise ValueError("Every recording needs annotations")
         if any(a.end_s > b.start_s for a, b in zip(rows, rows[1:], strict=False)):
             raise ValueError("Annotations must not overlap")
     for split in ("validation", "test"):
         labels = {e.keyword for e in events if by_id[e.recording_id].split == split}
         if labels != set(LABELS):
             raise ValueError(f"{split} requires Keywords, hard negatives and Silence/noise")
+    return total
+
+
+def validate_dataset(
+    recordings_path: Path, events_path: Path, root: Path, isolated_manifest_path: Path
+) -> float:
+    """Run the same structural/file checks for CLI and automated preparation callers."""
+    metadata = json.loads(recordings_path.read_text(encoding="utf-8"))
+    if not metadata.get("dataset_version") or not metadata.get("split_version"):
+        raise ValueError("Continuous dataset and split versions required")
+    sources = {key: Source(**value) for key, value in metadata["sources"].items()}
+    recordings = tuple(
+        ContinuousRecording(**{**row, "speaker_ids": tuple(row["speaker_ids"])})
+        for row in metadata["recordings"]
+    )
+    isolated = load_manifest(isolated_manifest_path)
+    total = validate_annotations(
+        recordings,
+        read_events(events_path),
+        isolated_speakers={e.speaker_id for e in isolated.examples},
+        isolated_sources={e.source_group for e in isolated.examples},
+        isolated_hashes={e.sha256 for e in isolated.examples},
+    )
+    for recording in recordings:
+        if recording.source_id not in sources:
+            raise ValueError("Missing recording source provenance")
+        path = local_path(root, recording.path)
+        if file_sha256(path) != recording.sha256:
+            raise ValueError("Recording checksum mismatch")
+        if abs(len(read_wav(path)) / 16000 - recording.duration_s) > 1 / 16000:
+            raise ValueError("Recording duration mismatch")
     return total
 
 
@@ -132,31 +163,8 @@ def main() -> None:
     parser.add_argument("--root", required=True, type=Path)
     parser.add_argument("--isolated-manifest", required=True, type=Path)
     args = parser.parse_args()
-    metadata = json.loads(args.recordings.read_text(encoding="utf-8"))
-    if not metadata.get("dataset_version") or not metadata.get("split_version"):
-        raise ValueError("Continuous dataset and split versions required")
-    sources = {key: Source(**value) for key, value in metadata["sources"].items()}
-    recordings = tuple(
-        ContinuousRecording(**{**row, "speaker_ids": tuple(row["speaker_ids"])})
-        for row in metadata["recordings"]
-    )
-    isolated = load_manifest(args.isolated_manifest)
-    total = validate_annotations(
-        recordings,
-        read_events(args.events),
-        isolated_speakers={e.speaker_id for e in isolated.examples},
-        isolated_sources={e.source_group for e in isolated.examples},
-        isolated_hashes={e.sha256 for e in isolated.examples},
-    )
-    for recording in recordings:
-        if recording.source_id not in sources:
-            raise ValueError("Missing recording source provenance")
-        path = local_path(args.root, recording.path)
-        if file_sha256(path) != recording.sha256:
-            raise ValueError("Recording checksum mismatch")
-        if abs(len(read_wav(path)) / 16000 - recording.duration_s) > 1 / 16000:
-            raise ValueError("Recording duration mismatch")
-    print(f"Validated {len(recordings)} natural recordings, {total:.1f} seconds")
+    total = validate_dataset(args.recordings, args.events, args.root, args.isolated_manifest)
+    print(f"Validated event structure and audio files: {total:.1f} seconds; labels not verified")
 
 
 if __name__ == "__main__":

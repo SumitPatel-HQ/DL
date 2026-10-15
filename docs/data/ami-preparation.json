@@ -1,0 +1,212 @@
+{
+  "dataset_version": "ami-natural-p0-v1",
+  "split_version": "in1002-test-global-speaker-disjoint-lexical-selection-v1",
+  "source": {
+    "url": "https://groups.inf.ed.ac.uk/ami/corpus/",
+    "version": "AMI manual annotations 1.6.2; official headset mixes",
+    "license": "CC-BY-4.0; https://creativecommons.org/licenses/by/4.0/",
+    "attribution": "AMI Meeting Corpus, AMI Project; https://groups.inf.ed.ac.uk/ami/corpus/",
+    "consent": "Publisher documents signed participant consent: https://groups.inf.ed.ac.uk/ami/corpus/ethicsandconsent.shtml . Individual signed forms are not held by this project.",
+    "permitted_use": "Local academic keyword evaluation with CC-BY-4.0 attribution; cropped and converted copies are identified as modifications.",
+    "retention": "Ignored local data until project completion or manual deletion; no app upload."
+  },
+  "structural_validation": "passed",
+  "total_duration_s": 1200.0,
+  "manual_review_performed": false,
+  "scoring_ready": false,
+  "speaker_intersection": [],
+  "source_intersection": [],
+  "splits": {
+    "validation": {
+      "duration_s": 600.0,
+      "speaker_ids": [
+        "FEE078",
+        "FEE080",
+        "FEE081",
+        "FEO079"
+      ],
+      "source_groups": [
+        "ami:EN2004a"
+      ],
+      "keyword_counts": {
+        "down": 5,
+        "go": 4,
+        "left": 1,
+        "right": 10,
+        "stop": 1,
+        "up": 5
+      },
+      "unflagged_keyword_counts": {
+        "right": 10,
+        "go": 4,
+        "up": 4,
+        "down": 5,
+        "left": 1,
+        "stop": 1
+      },
+      "truncated_keyword_counts": {
+        "up": 1
+      },
+      "unknown_spans": 55,
+      "silence_spans": 13,
+      "unknown_duration_s": 534.6099999999999,
+      "silence_duration_s": 41.65799999999997,
+      "unlabeled_duration_s": 14.382000000000062,
+      "hard_negative_candidate_counts": {
+        "got": 2,
+        "slow": 1,
+        "going": 3,
+        "write": 2,
+        "gone": 3
+      }
+    },
+    "test": {
+      "duration_s": 600.0,
+      "speaker_ids": [
+        "MIO022",
+        "MIO050",
+        "MIO076",
+        "MIO078"
+      ],
+      "source_groups": [
+        "ami:IN1002"
+      ],
+      "keyword_counts": {
+        "down": 1,
+        "go": 3,
+        "left": 1,
+        "right": 6,
+        "stop": 1,
+        "up": 4
+      },
+      "unflagged_keyword_counts": {
+        "go": 3,
+        "stop": 1,
+        "up": 4,
+        "right": 6,
+        "left": 1,
+        "down": 1
+      },
+      "truncated_keyword_counts": {},
+      "unknown_spans": 56,
+      "silence_spans": 7,
+      "unknown_duration_s": 561.39,
+      "silence_duration_s": 8.827000000000012,
+      "unlabeled_duration_s": 25.112999999999943,
+      "hard_negative_candidate_counts": {
+        "write": 1,
+        "going": 1,
+        "good": 1,
+        "got": 5,
+        "download": 1,
+        "downloading": 1
+      }
+    }
+  },
+  "clips": {
+    "ami-EN2004a-17603360-22403360": {
+      "meeting_id": "EN2004a",
+      "start_s": 1100.21,
+      "end_s": 1400.21,
+      "split": "validation",
+      "source_audio_url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/EN2004a/audio/EN2004a.Mix-Headset.wav",
+      "source_audio_sha256": "d188219aff66264adc8d6a8192f272ca4155b483cf7eaa9498a8f0f6ac0ed9dc",
+      "annotation_archive_sha256": "b56e5babb2496b8795deeeda7e71178d7fbc9963f94276cf2a3f4b56ebbc9f9d",
+      "audio_modifications": "intact crop, canonical mono 16kHz, PCM_s16le",
+      "quality": {
+        "manual_review_performed": false,
+        "word_timestamps": "AMI forced alignment, not manually verified",
+        "unknown_method": "unrelated aligned lexical intervals minus guarded Keywords",
+        "silence_method": "all-speaker annotation gaps plus quiet RMS; inferred, not verified",
+        "quiet_rms_threshold": 0.01,
+        "hard_negative_candidate_counts": {
+          "got": 1,
+          "slow": 1,
+          "going": 2,
+          "write": 2
+        },
+        "truncated_keyword_count": 0,
+        "invalid_keyword_timings": [],
+        "adjacent_annotation_overlap_count": 522
+      }
+    },
+    "ami-EN2004a-47294400-52094400": {
+      "meeting_id": "EN2004a",
+      "start_s": 2955.9,
+      "end_s": 3255.9,
+      "split": "validation",
+      "source_audio_url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/EN2004a/audio/EN2004a.Mix-Headset.wav",
+      "source_audio_sha256": "d188219aff66264adc8d6a8192f272ca4155b483cf7eaa9498a8f0f6ac0ed9dc",
+      "annotation_archive_sha256": "b56e5babb2496b8795deeeda7e71178d7fbc9963f94276cf2a3f4b56ebbc9f9d",
+      "audio_modifications": "intact crop, canonical mono 16kHz, PCM_s16le",
+      "quality": {
+        "manual_review_performed": false,
+        "word_timestamps": "AMI forced alignment, not manually verified",
+        "unknown_method": "unrelated aligned lexical intervals minus guarded Keywords",
+        "silence_method": "all-speaker annotation gaps plus quiet RMS; inferred, not verified",
+        "quiet_rms_threshold": 0.01,
+        "hard_negative_candidate_counts": {
+          "gone": 3,
+          "going": 1,
+          "got": 1
+        },
+        "truncated_keyword_count": 1,
+        "invalid_keyword_timings": [],
+        "adjacent_annotation_overlap_count": 457
+      }
+    },
+    "ami-IN1002-7714240-17314240": {
+      "meeting_id": "IN1002",
+      "start_s": 482.14,
+      "end_s": 1082.14,
+      "split": "test",
+      "source_audio_url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/IN1002/audio/IN1002.Mix-Headset.wav",
+      "source_audio_sha256": "e925ffaca1ca1cfc74fe0368e8d312b4f7d9f5e20998b7371ee61f09d6c898d3",
+      "annotation_archive_sha256": "b56e5babb2496b8795deeeda7e71178d7fbc9963f94276cf2a3f4b56ebbc9f9d",
+      "audio_modifications": "intact crop, canonical mono 16kHz, PCM_s16le",
+      "quality": {
+        "manual_review_performed": false,
+        "word_timestamps": "AMI forced alignment, not manually verified",
+        "unknown_method": "unrelated aligned lexical intervals minus guarded Keywords",
+        "silence_method": "all-speaker annotation gaps plus quiet RMS; inferred, not verified",
+        "quiet_rms_threshold": 0.01,
+        "hard_negative_candidate_counts": {
+          "write": 1,
+          "going": 1,
+          "good": 1,
+          "got": 5,
+          "download": 1,
+          "downloading": 1
+        },
+        "truncated_keyword_count": 0,
+        "invalid_keyword_timings": [],
+        "adjacent_annotation_overlap_count": 1194
+      }
+    }
+  },
+  "source_checksums": {
+    "annotations": "b56e5babb2496b8795deeeda7e71178d7fbc9963f94276cf2a3f4b56ebbc9f9d",
+    "audio": {
+      "EN2004a": "d188219aff66264adc8d6a8192f272ca4155b483cf7eaa9498a8f0f6ac0ed9dc",
+      "IN1002": "e925ffaca1ca1cfc74fe0368e8d312b4f7d9f5e20998b7371ee61f09d6c898d3"
+    }
+  },
+  "isolated_manifest_sha256": "18d35280a2d421f0c1fea16fffb93950c4d3f3fba37b4124772ca6d36030b9eb",
+  "output_checksums": {
+    "recordings.json": "c6c8562de98ad950a7ce982887f633fb03d2f5ad2db57f8e143633557fc13e66",
+    "events.csv": "a4d4bb2a6f31a4d9feb91cb37deed1bd0e30f7d13f97bbb46c1ec8a84e7e1207",
+    "test.csv": "dc2e38b979221a202d487d73cfddbcda09069b1d9de703c9792eff3951e0bb60",
+    "validation.csv": "11f7723f52a2f36152519562f53f6b385cdc0da915b1fea5b2f45d3910e6e42e",
+    "keyword-provenance.json": "fffd696dbc77623e7008d5d199334eeff2b917c79aca20c0ef7b57387bfa23a9",
+    "ATTRIBUTION.txt": "0cbd6222a82ca0f28925d058e559ef9d1f3f9dedfa9ff3026e11d36a1dc21d43"
+  },
+  "remaining_requirements": [
+    "Word boundaries are automatically aligned, not manually verified.",
+    "Unknown and quiet Silence spans are inferred; acoustic correctness is unverified.",
+    "Hard negatives are lexical candidates, not listening-verified acoustic confusions.",
+    "AMI IDs cannot establish real-person separation from anonymous Speech Commands.",
+    "Sparse keyword counts and overlapping ordinary speech limit evaluation strength.",
+    "Publisher-marked truncated Keywords are flagged separately; they are uncertain labels.",
+    "Unlabeled gaps must not be treated as verified negative audio."
+  ]
+}
