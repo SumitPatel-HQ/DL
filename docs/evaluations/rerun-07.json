@@ -1,0 +1,222 @@
+{
+  "note": "Ticket 07 rerun: metric fields must reproduce within tolerance and provenance fields (checkpoint, config, dataset, detector) exactly. Timings, timestamps, and checkpoint file hashes are excluded.",
+  "code_revision": {
+    "commit": "5f3c8362a95d38dd6bafb2153ff6c76f922e5e9e",
+    "dirty": false
+  },
+  "runs": {
+    "isolated_test": [
+      {
+        "field": "metrics.accuracy",
+        "expected": 0.7335299901671584,
+        "actual": 0.7335299901671584,
+        "difference": 0.0,
+        "tolerance": 1e-09,
+        "match": true
+      },
+      {
+        "field": "metrics.macro_f1",
+        "expected": 0.7402308338629419,
+        "actual": 0.7402308338629419,
+        "difference": 0.0,
+        "tolerance": 1e-09,
+        "match": true
+      },
+      {
+        "field": "run_id",
+        "expected": "e02-isolated-test-e47e49f57e81",
+        "actual": "e02-isolated-test-e47e49f57e81",
+        "difference": 0.0,
+        "tolerance": 0.0,
+        "match": true
+      },
+      {
+        "field": "kind",
+        "expected": "isolated",
+        "actual": "isolated",
+        "difference": 0.0,
+        "tolerance": 0.0,
+        "match": true
+      },
+      {
+        "field": "experiment_id",
+        "expected": "E02",
+        "actual": "E02",
+        "difference": 0.0,
+        "tolerance": 0.0,
+        "match": true
+      },
+      {
+        "field": "checkpoint.sha256",
+        "expected": "e47e49f57e81a4d4352efece7c0af798c37527014117fe0ebc554129b4b7589d",
+        "actual": "e47e49f57e81a4d4352efece7c0af798c37527014117fe0ebc554129b4b7589d",
+        "difference": 0.0,
+        "tolerance": 0.0,
+        "match": true
+      },
+      {
+        "field": "config_sha256",
+        "expected": "2e399d0a447b90299b6121bd62a376cfefd99956136768ac069719596060e311",
+        "actual": "2e399d0a447b90299b6121bd62a376cfefd99956136768ac069719596060e311",
+        "difference": 0.0,
+        "tolerance": 0.0,
+        "match": true
+      },
+      {
+        "field": "dataset.dataset_version",
+        "expected": "speech-commands-v0.02-p0-subset-v1",
+        "actual": "speech-commands-v0.02-p0-subset-v1",
+        "difference": 0.0,
+        "tolerance": 0.0,
+        "match": true
+      },
+      {
+        "field": "dataset.split_version",
+        "expected": "speaker-sha256-80-10-10-noise-source-round-robin-v1",
+        "actual": "speaker-sha256-80-10-10-noise-source-round-robin-v1",
+        "difference": 0.0,
+        "tolerance": 0.0,
+        "match": true
+      }
+    ],
+    "continuous_test": [
+      {
+        "field": "metrics.precision",
+        "expected": 0.005420054200542005,
+        "actual": 0.005420054200542005,
+        "difference": 0.0,
+        "tolerance": 1e-09,
+        "match": true
+      },
+      {
+        "field": "metrics.recall",
+        "expected": 0.125,
+        "actual": 0.125,
+        "difference": 0.0,
+        "tolerance": 1e-09,
+        "match": true
+      },
+      {
+        "field": "metrics.f1",
+        "expected": 0.01038961038961039,
+        "actual": 0.01038961038961039,
+        "difference": 0.0,
+        "tolerance": 1e-09,
+        "match": true
+      },
+      {
+        "field": "metrics.false_alarms.per_hour",
+        "expected": 2215.998470757624,
+        "actual": 2215.998470757624,
+        "difference": 0.0,
+        "tolerance": 1e-09,
+        "match": true
+      },
+      {
+        "field": "run_id",
+        "expected": "e02-continuous-test-e47e49f57e81",
+        "actual": "e02-continuous-test-e47e49f57e81",
+        "difference": 0.0,
+        "tolerance": 0.0,
+        "match": true
+      },
+      {
+        "field": "kind",
+        "expected": "continuous",
+        "actual": "continuous",
+        "difference": 0.0,
+        "tolerance": 0.0,
+        "match": true
+      },
+      {
+        "field": "experiment_id",
+        "expected": "E02",
+        "actual": "E02",
+        "difference": 0.0,
+        "tolerance": 0.0,
+        "match": true
+      },
+      {
+        "field": "checkpoint.sha256",
+        "expected": "e47e49f57e81a4d4352efece7c0af798c37527014117fe0ebc554129b4b7589d",
+        "actual": "e47e49f57e81a4d4352efece7c0af798c37527014117fe0ebc554129b4b7589d",
+        "difference": 0.0,
+        "tolerance": 0.0,
+        "match": true
+      },
+      {
+        "field": "dataset.dataset_version",
+        "expected": "ami-natural-p0-v1",
+        "actual": "ami-natural-p0-v1",
+        "difference": 0.0,
+        "tolerance": 0.0,
+        "match": true
+      },
+      {
+        "field": "dataset.split_version",
+        "expected": "in1002-test-global-speaker-disjoint-lexical-selection-v1",
+        "actual": "in1002-test-global-speaker-disjoint-lexical-selection-v1",
+        "difference": 0.0,
+        "tolerance": 0.0,
+        "match": true
+      },
+      {
+        "field": "detector.file_sha256",
+        "expected": "c75f728b99e64cebbcdedb6b601832e4a7a352d8cd66537f89467876f0713f0b",
+        "actual": "c75f728b99e64cebbcdedb6b601832e4a7a352d8cd66537f89467876f0713f0b",
+        "difference": 0.0,
+        "tolerance": 0.0,
+        "match": true
+      },
+      {
+        "field": "detector.tolerance_s",
+        "expected": 0.5,
+        "actual": 0.5,
+        "difference": 0.0,
+        "tolerance": 0.0,
+        "match": true
+      },
+      {
+        "field": "detector.config.stride_s",
+        "expected": 0.2,
+        "actual": 0.2,
+        "difference": 0.0,
+        "tolerance": 0.0,
+        "match": true
+      },
+      {
+        "field": "detector.config.threshold",
+        "expected": 0.5,
+        "actual": 0.5,
+        "difference": 0.0,
+        "tolerance": 0.0,
+        "match": true
+      },
+      {
+        "field": "detector.config.min_consecutive",
+        "expected": 1,
+        "actual": 1,
+        "difference": 0.0,
+        "tolerance": 0.0,
+        "match": true
+      },
+      {
+        "field": "detector.config.suppression_s",
+        "expected": 1.0,
+        "actual": 1.0,
+        "difference": 0.0,
+        "tolerance": 0.0,
+        "match": true
+      },
+      {
+        "field": "detector.config.window_s",
+        "expected": 1.0,
+        "actual": 1.0,
+        "difference": 0.0,
+        "tolerance": 0.0,
+        "match": true
+      }
+    ]
+  },
+  "passed": true
+}
