@@ -12,6 +12,7 @@ class Settings:
     storage: Path = ROOT / "data" / "service"
     checkpoint: Path = ROOT / "artifacts" / "models" / "e02" / "model.pt"
     detector: Path = ROOT / "docs" / "evaluations" / "continuous-v1" / "detector-e02.json"
+    evaluations: Path = ROOT / "docs" / "evaluations"
     max_upload_bytes: int = 40 * 1024 * 1024
     max_duration_s: float = 600
     queue_capacity: int = 2
@@ -34,4 +35,5 @@ class Settings:
             storage=Path(os.environ.get("KWS_STORAGE", defaults.storage)),
             checkpoint=Path(os.environ.get("KWS_CHECKPOINT", defaults.checkpoint)),
             detector=Path(os.environ.get("KWS_DETECTOR", defaults.detector)),
+            evaluations=Path(os.environ.get("KWS_EVALUATIONS", defaults.evaluations)),
         )

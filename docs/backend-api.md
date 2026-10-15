@@ -9,8 +9,9 @@ The default active model is `artifacts/models/e02/model.pt`, paired with
 `docs/evaluations/continuous-v1/detector-e02.json`. Startup checks the checkpoint
 format, labels, features, and detector/checkpoint hash agreement. Missing or
 incompatible artifacts leave the API running with explicit model-unavailable status.
-Operator environment variables `KWS_STORAGE`, `KWS_CHECKPOINT`, and `KWS_DETECTOR`
-override these paths before startup. Restart to change the active model.
+Operator environment variables `KWS_STORAGE`, `KWS_CHECKPOINT`, `KWS_DETECTOR`, and
+`KWS_EVALUATIONS` (default `docs/evaluations/`) override these paths before startup.
+Restart to change the active model.
 
 Continuous analysis is experimental per [ADR-0006](adr/0006-sliding-window-gate-no-go.md).
 Active-model and Detection responses include the limitation and a pointer to the
@@ -31,6 +32,10 @@ Confidence is a classifier score. Times are approximate window spans.
 | GET | `/api/recordings/{id}/detections` | Stored Detections and analysis status; poll Recording metadata until terminal status |
 | GET | `/api/recordings/{id}/audio` | Original WAV; HTTP byte ranges, suffix ranges, and unsatisfiable-range responses |
 | DELETE | `/api/recordings/{id}` | Delete audio, metadata, and child Detections, HTTP 204 |
+| GET | `/api/evaluations` | Stored Evaluation Run summaries with provenance and target; `code` is `runs_available` or `not_evaluated` |
+| GET | `/api/evaluations/{id}` | One Evaluation Run with kind-specific metrics, from that run alone |
+| POST | `/api/evaluations/import` | Import the committed run files, returns `imported` IDs and `rejected` sources with codes |
+| DELETE | `/api/evaluations/{id}` | Delete one stored Evaluation Run, HTTP 204 |
 
 Upload accepts non-empty integer PCM WAV at 8-96 kHz, mono or stereo,
 8/16/24/32-bit. The service inspects headers, validates actual sample-byte count,
@@ -56,6 +61,56 @@ A completed job with no Detections returns HTTP 200, `code: "no_detections"`,
 and `detections: []`. It never invents a label. Before completion the code is
 `analysis_not_completed`; failed jobs expose their stored error code.
 
+## Evaluation Runs
+
+Every dashboard number comes from a stored Evaluation Run ([ADR-0005](adr/0005-run-based-evaluation.md)).
+`POST /api/evaluations/import` reads `*/*.json` under the operator-configured
+directory; requests never name files. Files without `run_id` (detector configs,
+training logs, comparisons) are skipped. Each run is validated before storage:
+a 64-hex checkpoint SHA-256, dataset and split versions, a config hash, and a
+timestamp with UTC offset are required. Counts must reconcile: confusion-matrix
+rows sum to per-class support and to the example count; Keyword hits plus misses
+equal the scored Keyword events; hits plus false Detections equal the Detections.
+Accuracy and macro-F1 must follow from the confusion matrix and per-class F1, and
+event precision, recall, and F1 from the hit, false, and miss counts, so no run
+can carry a number its own counts contradict. The stored `met` flag must agree
+with the achieved metric and its goal. Unreadable files are rejected one by one.
+Rejections use `invalid_evaluation_run`, `missing_ground_truth` (no labeled
+examples, Keyword events, or negative exposure: unlabeled audio has no metrics),
+or `duplicate_run_id`. Import replaces stored runs with the same ID, so a deleted
+committed run returns only after an explicit import. Startup never imports.
+
+Each summary and detail carries `id`, `kind`, `experiment_id`, `created_at`,
+`source` (path relative to the run directory), and `provenance`:
+`checkpoint_sha256`, `dataset_version`, `split_version`, `split`, `config_sha256`,
+`config_role`, and `code_revision` with its `dirty` flag. For `isolated` runs the
+config is the training config (`config_role: "training"`). For `continuous` runs
+it is the frozen detector config, identified by the detector file SHA-256
+(`config_role: "detector"`). `target` holds `metric` (`macro_f1` or `event_f1`),
+`goal`, `achieved`, `met`, and the never-redefined note.
+
+Detail adds `provenance.config` and `experimental`. Isolated classification and
+continuous-event numbers never share a response:
+
+- `isolated`: `metrics` has `examples`, `accuracy`, `macro_f1`, `per_class`
+  (label order, with `support`), and `confusion_matrix` (`labels`, rows `true`,
+  columns `predicted`, counts). `training` has epochs, `best_epoch`, and per-epoch
+  `curves` of train/validation loss and accuracy plus validation macro-F1.
+- `continuous` (`experimental: true`): `metrics` has `detections`, hit/false/miss
+  counts, event `precision`, `recall`, `f1`, `false_alarms` (`count`,
+  `negative_seconds`, `per_hour`, `definition`, and `by_region` for Unknown and
+  Silence), `ignored_matches`, and `per_keyword`. `detector` names tolerance,
+  match rule, and the tuning split; `composition` gives Keyword event counts,
+  annotated and unlabeled seconds, speaker IDs, and annotation quality.
+  `limitations` and `confidence_note` state that Confidence is a score only.
+  Continuous runs never report accuracy.
+
+A missing or deleted run returns 404 `evaluation_not_found`. Clients clear every
+view that depended on it; there is no fallback to another run. The list `code`
+covers all runs, so a dashboard tab with no run of its `kind` shows Not evaluated
+on its own. A run describes the active model when `provenance.checkpoint_sha256`
+equals the `id` from `GET /api/models/active`.
+
 ## Errors and local access
 
 Application errors use `{"error":{"code":"...","message":"..."}}`.
@@ -66,11 +121,11 @@ Application errors use `{"error":{"code":"...","message":"..."}}`.
 | `upload_disconnected` | 400 when a response can still be delivered |
 | `invalid_filename`, `invalid_upload`, `invalid_request`, `unsupported_keyword` | 422 |
 | `upload_too_large`, `recording_too_long` | 413 |
-| `recording_not_found` | 404 |
+| `recording_not_found`, `evaluation_not_found` | 404 |
 | `analysis_in_progress`, `delete_failed` | 409 |
 | `audio_unavailable` | 410 |
 | `queue_full`, `rate_limited`, `uploads_busy` | 429 |
-| `checkpoint_not_installed`, `model_incompatible`, `worker_unavailable`, `storage_error`, `persistence_error` | 503 |
+| `checkpoint_not_installed`, `model_incompatible`, `worker_unavailable`, `storage_error`, `persistence_error`, `evaluations_unavailable` | 503 |
 
 Worker inference failures use Recording status `failed` and `error_code: "analysis_failed"`.
 Metadata write failures use `persistence_error`. If even saving failure status is
@@ -94,11 +149,11 @@ duration/byte/queue limits can be set through `Settings` when embedding the app.
 The ten-minute ceiling is a validation limit, not a target-hardware performance claim.
 
 SQLite enables foreign keys and stores model identities, Recordings, Detections,
-Evaluation Runs, and live-event metadata. The `evaluation_runs` and `live_events`
-tables are reserved schema only: the Evaluation import/read APIs
-(`GET /api/evaluations`, `GET /api/evaluations/{id}`), the command map
-(`GET /api/commands`), and the live WebSocket/action implementation are explicitly
-deferred to ticket 06 (Analysis, live, and dashboard UI). No raw mic audio is stored.
+Evaluation Runs, and live-event metadata. `PRAGMA user_version` tracks the schema;
+version 1 replaces the earlier reserved, never-written `evaluation_runs` shape.
+The `live_events` table is reserved schema only: the command map
+(`GET /api/commands`) and the live WebSocket/action implementation are deferred
+to ticket 06d. No raw mic audio is stored.
 
 ## Validation
 
@@ -107,4 +162,7 @@ and a real, deliberately biased test checkpoint. These are plumbing fixtures,
 not evidence of speech accuracy. It covers persistence across restart, ranged
 playback (including suffix ranges and unsatisfiable-range 416 responses),
 deletion, validation errors, queue saturation, shutdown, source loss,
-worker recovery, and upload disconnects. `npm run check` runs the repository checks.
+worker recovery, and upload disconnects. `backend/tests/test_evaluations.py`
+imports the committed Evaluation Runs and covers provenance, kind separation,
+deletion across restart, rejected documents, and the schema upgrade.
+`npm run check` runs the repository checks.

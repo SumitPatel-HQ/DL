@@ -6,11 +6,12 @@ from contextlib import contextmanager
 from pathlib import Path
 from threading import RLock
 
-# evaluation_runs and live_events carry no API yet: their import/read routes
-# (/api/evaluations) and the live WebSocket/action implementation belong to
-# ticket 06. The tables exist here so the ticket-05 persistence seam (models,
-# recordings, detections, evaluation runs, live events per KWS_SPEC) has a
-# stable schema for ticket 06 to build on, without silent schema-only drift.
+# live_events carries no API yet: the live WebSocket/action implementation
+# belongs to ticket 06. Evaluation Runs are imported from committed run files
+# and keep the whole validated document; the provenance columns make every row
+# traceable to checkpoint, dataset/split version, config, and timestamp without
+# parsing JSON. Runs may describe checkpoints that are not installed (E01), so
+# they reference checkpoints by hash rather than by a models row.
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS models (
     id TEXT PRIMARY KEY, version TEXT NOT NULL, checkpoint_path TEXT NOT NULL,
@@ -32,9 +33,11 @@ CREATE TABLE IF NOT EXISTS detections (
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS evaluation_runs (
-    id TEXT PRIMARY KEY, model_id TEXT NOT NULL REFERENCES models(id), dataset_id TEXT NOT NULL,
-    split_id TEXT NOT NULL, config_json TEXT NOT NULL, metrics_json TEXT NOT NULL,
-    artifacts_path TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    id TEXT PRIMARY KEY, kind TEXT NOT NULL CHECK(kind IN ('isolated','continuous')),
+    checkpoint_sha256 TEXT NOT NULL, dataset_version TEXT NOT NULL,
+    split_version TEXT NOT NULL, split TEXT NOT NULL, config_sha256 TEXT NOT NULL,
+    source TEXT NOT NULL, document_json TEXT NOT NULL, created_at TEXT NOT NULL,
+    imported_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS live_events (
     id INTEGER PRIMARY KEY, session_id TEXT NOT NULL, keyword TEXT,
@@ -45,6 +48,7 @@ CREATE TABLE IF NOT EXISTS live_events (
 );
 CREATE INDEX IF NOT EXISTS detections_recording ON detections(recording_id);
 """
+SCHEMA_VERSION = 1
 
 # Recordings being analyzed by the bounded worker. RecordingService holds
 # Store.lock only for these short metadata transitions, never across audio
@@ -64,7 +68,12 @@ class Store:
         self.connection.row_factory = sqlite3.Row
         self.connection.execute("PRAGMA foreign_keys = ON")
         self.connection.execute("PRAGMA journal_mode = WAL")
+        if self.connection.execute("PRAGMA user_version").fetchone()[0] < SCHEMA_VERSION:
+            # Version 0 reserved evaluation_runs with no writer, so the old
+            # shape never held data and is replaced rather than migrated.
+            self.connection.execute("DROP TABLE IF EXISTS evaluation_runs")
         self.connection.executescript(SCHEMA)
+        self.connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
         with self.transaction() as db:
             db.execute(
                 "UPDATE recordings SET status='failed', error_code='service_interrupted' "

@@ -8,10 +8,12 @@ from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.responses import JSONResponse
 
+from app.api.evaluations import router as evaluations_router
 from app.api.health import router as health_router
 from app.api.recordings import router as recordings_router
 from app.errors import ServiceError
 from app.middleware import LocalRequestsMiddleware
+from app.services.evaluations import EvaluationService
 from app.services.recordings import RecordingService
 from app.settings import Settings
 
@@ -23,6 +25,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def lifespan(application: FastAPI) -> AsyncIterator[None]:
         jobs = RecordingService(config)
         application.state.recordings = jobs
+        application.state.evaluations = EvaluationService(jobs.store, config.evaluations)
         try:
             yield
         finally:
@@ -69,6 +72,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     application.include_router(health_router)
     application.include_router(recordings_router)
+    application.include_router(evaluations_router)
     return application
 
 
