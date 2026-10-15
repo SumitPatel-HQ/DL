@@ -1,10 +1,10 @@
 {
   "run_id": "e02-isolated-validation-e47e49f57e81",
   "kind": "isolated",
-  "created_at": "2026-10-15T11:17:00.155698+00:00",
+  "created_at": "2026-10-15T18:21:34.701516+00:00",
   "code_revision": {
-    "commit": "9fe5325312919933a39c9b9b9b3d449ed1cd03e8",
-    "dirty": true
+    "commit": "cd2fd3771040c966300e583107e308dd2730400e",
+    "dirty": false
   },
   "experiment_id": "E02",
   "checkpoint": {
@@ -142,7 +142,7 @@
     },
     "confusion_matrix": {
       "rows": "true",
-      "columns": "predicted",
+      "columns": "detected",
       "values": [
         [
           98,
@@ -431,18 +431,18 @@
       "os": "Windows-11-10.0.26300-SP0",
       "cpu": "AMD64 Family 23 Model 104 Stepping 1, AuthenticAMD"
     },
-    "evaluation_seconds": 0.4148286000126973,
-    "peak_rss_bytes": 516427776,
+    "evaluation_seconds": 0.39803769999707583,
+    "peak_rss_bytes": 516198400,
     "single_window_latency": {
       "runs": 200,
       "torch_threads": 6,
       "model_forward_ms": {
-        "median": 2.0037499998579733,
-        "p95": 2.4480600055539963
+        "median": 1.7372500005876645,
+        "p95": 2.331265000975689
       },
       "features_plus_forward_ms": {
-        "median": 3.1642500034649856,
-        "p95": 3.808589996333467
+        "median": 2.8771499928552657,
+        "p95": 3.7729999981820574
       },
       "note": "Timing input is not evaluation data; streaming latency is measured later."
     }

@@ -6,15 +6,26 @@ Every story is either passed with evidence or carries an explicit
 failed-acceptance report below. Unmet targets are reported, never redefined.
 
 Status date: 15 October 2026. Automated acceptance: `npm run check` green
-(97 backend pytest tests, 6 frontend contract suites, Ruff/format, strict
-mypy, ESLint, TypeScript). Rerun: `scripts/reproduce.py` reports RERUN PASS
-(18/18 metric and identity fields reproduce exactly).
+(101 backend pytest tests including the consolidated
+`backend/tests/test_acceptance_07.py` ticket-07 run, 6 frontend contract
+suites, Ruff/format, strict mypy, ESLint, TypeScript). Rerun:
+`scripts/reproduce.py` reports RERUN PASS (26/26 metric and provenance
+fields reproduce exactly); the recorded proof is
+[`rerun-07.json`](rerun-07.json) in this directory.
 
 ## 1. Story verdicts
 
 Audio Analysis (reviewer). Evidence: `backend/tests/test_recordings.py`,
-`backend/tests/test_spotting.py`, `frontend/app/analyze`,
+`backend/tests/test_spotting.py`, `backend/tests/test_acceptance_07.py`,
+`frontend/app/analyze`,
 `frontend/tests/detections.test.mjs`, `frontend/tests/wav.test.mjs`.
+The ticket-07 acceptance run (`test_acceptance_07.py`, 4 tests) walks one
+journey end to end: corrupt audio rejected with `invalid_wav` and no
+Recording left behind; Silence analyzed to an explicit `no_detections`
+empty state; unsupported Keywords rejected with `unsupported_keyword`;
+missing checkpoint staying explicit; a bad live handshake closing with a
+stable code followed by a working session; Unknown words rejected without
+action; and a dropped live session reopening cleanly.
 
 | # | Story | Verdict | Evidence |
 |---|---|---|---|
@@ -49,7 +60,7 @@ Evaluation dashboard (student). Evidence: `backend/tests/test_evaluations.py`,
 | 17 | Real training/validation curves | Pass | Per-epoch loss/accuracy plus validation macro-F1 from saved checkpoints |
 | 18 | Confusion matrix, per-class P/R/F1 incl. Unknown and Silence | Pass | E02 test macro-F1 0.740 with full matrix; Unknown weakest (F1 0.461) |
 | 19 | Isolated vs continuous-event metrics separated | Pass | Kind-specific responses; continuous runs never report accuracy |
-| 20 | Traceable checkpoint/split/config/timestamp | Pass with note | All runs carry hashes and revisions; continuous runs are clean-tree (`dirty: false`); isolated runs predate the final commit but `scripts/reproduce.py` proves their metrics reproduce exactly |
+| 20 | Traceable checkpoint/split/config/timestamp | Pass | Every run carries hashes and a clean-tree revision; the isolated runs were regenerated from a clean tree with identical metrics (confusion columns now read `detected`); `scripts/reproduce.py` proves the committed files reproduce exactly |
 | 21 | `Not evaluated` when no valid run | Pass | Empty states per dashboard tab; deleted runs stay deleted until explicit re-import |
 | 22 | Distinct readiness/disconnect/mic-denied errors | Pass | Health distinguishes unavailable/disconnected/denied; live handshake codes separate model, audio, version, and busy failures |
 
@@ -81,16 +92,19 @@ Course evaluator.
 - Clean-vs-noisy comparison: **not built in P0**. It is roadmap item
   P1-03, blocked on this report. No noisy-condition Evaluation Run exists.
 
-## 3. Rerun from saved artifacts (tolerance: exact)
+## 3. Rerun from saved artifacts (tolerance: exact for metrics, exact for provenance)
 
 `scripts/reproduce.py` reruns the documented CLI commands for the E02
 isolated test run and the E02 continuous test run from the saved checkpoint
-(`e47e49f57e81…`) and frozen configs, then compares every metric field plus
-run/kind/experiment identity, checkpoint hash, and dataset/split versions
-against the committed files. Timings, timestamps, and checkpoint file bytes
-are excluded as machine measurements. Result on the development laptop:
-**RERUN PASS, 18/18 fields match with difference 0** (report in ignored
-`artifacts/evaluations/rerun-07.json`).
+(`e47e49f57e81…`) and frozen configs, then compares every metric field
+within 1e-9 and every provenance field exactly (run/kind/experiment
+identity, checkpoint hash, training config hash, dataset/split versions,
+and the frozen detector file hash plus all six detector parameters) against
+the committed files in `docs/evaluations/`. Timings, timestamps, and
+checkpoint file bytes are excluded as machine measurements. Result on the
+development laptop: **RERUN PASS, 26/26 fields match with difference 0**;
+the machine-written proof with the producing code revision is committed as
+[`rerun-07.json`](rerun-07.json) in this directory.
 
 During this ticket the continuous runs were regenerated with the current
 per-Keyword suppression rule (the committed files predated it, as their

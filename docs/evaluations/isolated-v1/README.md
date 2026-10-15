@@ -5,9 +5,13 @@ its checkpoint SHA-256, config hash, dataset/split version, manifest and
 normalization hashes, code revision and timestamp. The checkpoints themselves stay
 local in `artifacts/models/e01/` and `artifacts/models/e02/`.
 
-These runs were produced from an uncommitted working tree (`code_revision.dirty`
-is `true`). Regenerate them after committing for clean provenance; training and
-evaluation are deterministic, so metrics and curves should not change.
+These runs were regenerated on 15 October 2026 from a clean working tree
+(`code_revision.commit` `cd2fd37`, `dirty` `false`) with the current code.
+Metrics, curves, and confusion values are unchanged from the previous
+committed runs; the confusion-matrix column label is now `detected`
+(the import API still accepts legacy `predicted` files). Training and
+evaluation are deterministic, so a rerun reproduces them; see the
+[ticket 07 validation report](../validation-report.md) for the rerun evidence.
 
 Data: `speech-commands-v0.02-p0-subset-v1`, split
 `speaker-sha256-80-10-10-noise-source-round-robin-v1`, 1,051 train, 1,018

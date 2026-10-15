@@ -172,6 +172,20 @@ def compare(expected: dict[str, Any], actual: dict[str, Any], rerun: Rerun) -> l
     return rows
 
 
+def code_revision() -> dict[str, object]:
+    """Commit and dirtiness of the working tree that produced this rerun."""
+    commit = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=ROOT, check=True, capture_output=True, text=True
+    ).stdout.strip()
+    dirty = (
+        subprocess.run(
+            ["git", "status", "--porcelain"], cwd=ROOT, check=True, capture_output=True, text=True
+        ).stdout.strip()
+        != ""
+    )
+    return {"commit": commit, "dirty": dirty}
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -204,6 +218,7 @@ def main() -> int:
             "provenance fields (checkpoint, config, dataset, detector) exactly. "
             "Timings, timestamps, and checkpoint file hashes are excluded."
         ),
+        "code_revision": code_revision(),
         "runs": runs,
         "passed": passed,
     }

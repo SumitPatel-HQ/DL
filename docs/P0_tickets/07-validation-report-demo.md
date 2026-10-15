@@ -17,14 +17,20 @@ Implementation evidence, 15 October 2026:
 
 - Per-story verdicts for all 24 P0 stories with evidence pointers are in
   [validation-report.md](../evaluations/validation-report.md). Stories 1-22
-  pass on automated tests (97 backend, 6 frontend suites, `npm run check`
+  pass on automated tests (101 backend including the consolidated
+  `test_acceptance_07.py` ticket-07 run over corrupt audio, Silence,
+  Unknown words, and reconnects; 6 frontend suites; `npm run check`
   green). Story 23 fails as unmeasured on the Ryzen 5 5500U target
   (dev-laptop numbers only). Story 24 carries the failed-acceptance
   report: isolated macro-F1 0.740 vs 0.85, event-F1 0.010 vs 0.70.
 - `scripts/reproduce.py` reruns the E02 isolated and continuous test runs
-  from the saved checkpoint and frozen configs: RERUN PASS, 18/18 fields
-  match with difference 0. The continuous runs were regenerated with the
-  current per-Keyword suppression rule from a clean tree; tuning
+  from the saved checkpoint and frozen configs against the committed
+  files: RERUN PASS, 26/26 metric and provenance fields match with
+  difference 0, including the frozen detector parameters; the proof is
+  committed as [rerun-07.json](../evaluations/rerun-07.json). The
+  continuous runs were regenerated with the current per-Keyword
+  suppression rule from a clean tree, and the isolated runs were
+  regenerated from a clean tree with identical metrics; tuning
   re-selected identical parameters and the no-go gate stands.
 - Limits, the unexecuted microphone protocol, the missing noisy
   comparison (P1-03), and attribution are documented in the report.

@@ -57,7 +57,7 @@ def test_importing_committed_runs_lists_each_with_provenance(tmp_path: Path) -> 
 
         e02 = runs["e02-isolated-test-e47e49f57e81"]
         assert e02["experiment_id"] == "E02"
-        assert e02["created_at"] == "2026-10-15T11:17:07.392043+00:00"
+        assert e02["created_at"] == "2026-10-15T18:21:27.978713+00:00"
         assert e02["source"] == "isolated-v1/e02-test.json"
         assert e02["provenance"] == {
             "checkpoint_sha256": (
@@ -69,8 +69,8 @@ def test_importing_committed_runs_lists_each_with_provenance(tmp_path: Path) -> 
             "config_role": "training",
             "config_sha256": "2e399d0a447b90299b6121bd62a376cfefd99956136768ac069719596060e311",
             "code_revision": {
-                "commit": "9fe5325312919933a39c9b9b9b3d449ed1cd03e8",
-                "dirty": True,
+                "commit": "cd2fd3771040c966300e583107e308dd2730400e",
+                "dirty": False,
             },
         }
         assert e02["target"] == {
@@ -335,7 +335,8 @@ def test_legacy_predicted_columns_are_accepted_and_returned_as_detected(
 ) -> None:
     root = tmp_path / "evaluations"
     document = committed("e02-test.json")
-    assert document["metrics"]["confusion_matrix"]["columns"] == "predicted"
+    assert document["metrics"]["confusion_matrix"]["columns"] == "detected"
+    document["metrics"]["confusion_matrix"]["columns"] = "predicted"
     write(root, "a/legacy.json", document)
     with open_client(settings(tmp_path, root)) as client:
         assert client.post("/api/evaluations/import").json()["imported"] == [
