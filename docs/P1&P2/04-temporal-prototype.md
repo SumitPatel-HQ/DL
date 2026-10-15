@@ -16,6 +16,6 @@ that never replaces the isolated-classifier core until it passes the gate.
 
 - [ ] Prototype emits Detections in the existing shape through the existing Detector interface seam (no new serving contract)
 - [ ] Tuning uses validation only; test split, tolerance, and match rule are unchanged and frozen before test
-- [ ] Run reports event precision/recall/F1 + false alarms/hour with error review, directly comparable to the 0.007 baseline
+- [ ] Run reports event precision/recall/F1 + false alarms/hour with error review, directly comparable to the 0.010 baseline
 - [ ] Gate verdict is recorded (adopt / bounded retune / keep experimental); the 0.70 target is reported as met or unmet, never redefined
 - [ ] UI (if any) labels the prototype experimental with Confidence-only language and links the run

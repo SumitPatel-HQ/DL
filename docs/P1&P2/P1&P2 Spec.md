@@ -16,8 +16,8 @@ Model Evaluation) but leaves the PRD's P1/P2 requirements unbuilt: there is no
 CSV export of Detections, no clean/noisy comparison, no model-comparison view,
 no higher-quality continuous localizer, no vocabulary growth path, and no
 opt-in OS-level actions. At the same time the P0 evidence records two unmet
-targets — isolated macro-F1 0.740 vs 0.85 hypothesis, continuous event-F1 0.007
-vs 0.70 with 1,559 false alarms/hour — plus unverified automatic annotations
+targets — isolated macro-F1 0.740 vs 0.85 hypothesis, continuous event-F1 0.010
+vs 0.70 with 2,216 false alarms/hour — plus unverified automatic annotations
 (`scoring_ready: false`). Building P1/P2 in PR-number order would wire an
 experimental Detector to OS actions and grow vocabulary on a broken Unknown
 rejection. The problem is how to sequence PR-14…PR-20 so safe, high-value work
@@ -44,7 +44,7 @@ experimental until a frozen-protocol Evaluation Run says otherwise.
 6. As a course evaluator, I want a dashboard tab with no stored run of its kind to show Not evaluated, so that missing evidence is explicit instead of silently falling back to another run.
 7. As a course evaluator, I want a clean-vs-noisy comparison on labeled Evaluation sets, so that Silence/noise robustness is measured rather than assumed.
 8. As a student, I want the noise comparison to name its dataset/split versions and noise sources per split, so that the known two-sources-per-split weakness is visible until fixed.
-9. As a student, I want the temporal-model prototype (LSTM+CTC or equivalent sequence Detector) evaluated with the same frozen tolerance, match rule, and held-out AMI test split as the sliding-window gate, so that its event-F1 is directly comparable to 0.007.
+9. As a student, I want the temporal-model prototype (LSTM+CTC or equivalent sequence Detector) evaluated with the same frozen tolerance, match rule, and held-out AMI test split as the sliding-window gate, so that its event-F1 is directly comparable to 0.010.
 10. As a course evaluator, I want the temporal prototype to ship as a separately scoped experiment that never replaces the isolated-classifier core until it passes the gate, so that P0 claims stay intact.
 11. As a voice-control user, I want new Keywords such as `next`, `pause`, `urgent` only after licensed/consented recordings exist and the Unknown class still rejects unrelated speech, so that vocabulary growth does not collapse rejection.
 12. As a voice-control user, I want vocabulary expansion to arrive as a new dataset version plus retraining plus full isolated and continuous Evaluation Runs, so that quality claims are re-measured, not inherited.

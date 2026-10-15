@@ -18,6 +18,8 @@ votes into Detections. Each Detection carries Confidence and threshold metadata.
 `ml.evaluate_continuous` tunes on validation only and freezes the ±0.5 s tolerance.
 It refuses detector files that could have seen test data. On held-out AMI IN1002,
 event-F1 is 0.007 and false alarms are 1,559/hour, against the 0.70 target.
-[ADR-0006](../adr/0006-sliding-window-gate-no-go.md) records the gate: no-go for
+Ticket 07 later regenerated these runs with the current per-Keyword
+suppression rule (event-F1 0.010, 2,216 false alarms/hour); the no-go gate
+stands. [ADR-0006](../adr/0006-sliding-window-gate-no-go.md) records the gate: no-go for
 the sliding-window detector as a working feature, with a temporal model as a
 separately scoped prototype. See [the Evaluation Runs](../evaluations/continuous-v1/README.md).

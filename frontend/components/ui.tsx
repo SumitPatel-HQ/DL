@@ -97,7 +97,7 @@ export function ExperimentalBanner({ evidence = "/dashboard?tab=continuous" }: {
       }
     >
       Detection times are approximate 1 s window spans. Confidence is a classifier score, not a
-      measure of correctness. On held-out natural speech this detector scored event-F1 0.007, far
+      measure of correctness. On held-out natural speech this detector scored event-F1 0.010, far
       below the 0.70 target, so treat Detections as leads to verify by listening.
     </Banner>
   );

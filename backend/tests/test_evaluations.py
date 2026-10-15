@@ -84,12 +84,12 @@ def test_importing_committed_runs_lists_each_with_provenance(tmp_path: Path) -> 
         held_out = runs["e02-continuous-test-e47e49f57e81"]
         assert held_out["provenance"]["config_role"] == "detector"
         assert held_out["provenance"]["config_sha256"] == (
-            "a65f002169fe73fdf9065eec34c41cc3701eb4fed5dc497408bd996f6841e391"
+            "c75f728b99e64cebbcdedb6b601832e4a7a352d8cd66537f89467876f0713f0b"
         )
         assert held_out["provenance"]["dataset_version"] == "ami-natural-p0-v1"
         assert held_out["target"]["metric"] == "event_f1"
         assert held_out["target"]["goal"] == 0.7
-        assert held_out["target"]["achieved"] == 0.007246376811594203
+        assert held_out["target"]["achieved"] == 0.01038961038961039
         assert held_out["target"]["met"] is False
 
 
@@ -160,12 +160,12 @@ def test_run_detail_comes_from_that_run_alone(tmp_path: Path) -> None:
             "window_s": 1.0,
         }
         metrics = events["metrics"]
-        assert (metrics["detections"], metrics["true_positive"]) == (260, 1)
-        assert (metrics["false_positive"], metrics["false_negative"]) == (259, 15)
-        assert metrics["f1"] == 0.007246376811594203
-        assert metrics["false_alarms"]["count"] == 247
+        assert (metrics["detections"], metrics["true_positive"]) == (369, 2)
+        assert (metrics["false_positive"], metrics["false_negative"]) == (367, 14)
+        assert metrics["f1"] == 0.01038961038961039
+        assert metrics["false_alarms"]["count"] == 351
         assert metrics["false_alarms"]["negative_seconds"] == 570.217
-        assert metrics["false_alarms"]["per_hour"] == 1559.4063312738836
+        assert metrics["false_alarms"]["per_hour"] == 2215.998470757624
         assert metrics["false_alarms"]["by_region"]["silence"] == {
             "count": 1,
             "seconds": 8.827000000000012,

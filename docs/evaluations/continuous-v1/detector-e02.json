@@ -1,9 +1,9 @@
 {
   "format": "kws-detector-v1",
-  "created_at": "2026-10-15T12:13:49.856525+00:00",
+  "created_at": "2026-10-15T18:01:13.184069+00:00",
   "code_revision": {
-    "commit": "b068b45a45378a10d50d6e8d3d9cd11e95233764",
-    "dirty": true
+    "commit": "1117b3f6ff60782c9449f992fdf1091140d6606e",
+    "dirty": false
   },
   "checkpoint": {
     "path": "e02/model.pt",
@@ -27,7 +27,7 @@
       "ami-EN2004a-47294400-52094400": "43079eb3641e4bee108c55705793dc45f5e87aae4b9da9685b8173d96f301d60"
     }
   },
-  "objective": "max validation event-F1; ties: fewer false alarms, higher threshold, more consecutive windows, larger stride",
+  "objective": "max validation event-F1; ties: fewer false alarms, higher threshold, more consecutive windows, larger stride; suppression fixed at 1.0 s",
   "grid": {
     "stride_s": [
       0.2,
@@ -53,9 +53,6 @@
       1,
       2,
       3
-    ],
-    "suppression_s": [
-      1.0
     ]
   },
   "selected": {
@@ -64,10 +61,10 @@
     "min_consecutive": 1,
     "suppression_s": 1.0,
     "window_s": 1.0,
-    "precision": 0.026595744680851064,
+    "precision": 0.022026431718061675,
     "recall": 0.2,
-    "f1": 0.04694835680751174,
-    "false_alarms_per_hour": 1124.476805930574
+    "f1": 0.03968253968253968,
+    "false_alarms_per_hour": 1361.8663538492508
   },
   "top_candidates": [
     {
@@ -76,10 +73,10 @@
       "min_consecutive": 1,
       "suppression_s": 1.0,
       "window_s": 1.0,
-      "precision": 0.026595744680851064,
+      "precision": 0.022026431718061675,
       "recall": 0.2,
-      "f1": 0.04694835680751174,
-      "false_alarms_per_hour": 1124.476805930574
+      "f1": 0.03968253968253968,
+      "false_alarms_per_hour": 1361.8663538492508
     },
     {
       "stride_s": 0.2,
@@ -87,54 +84,10 @@
       "min_consecutive": 1,
       "suppression_s": 1.0,
       "window_s": 1.0,
-      "precision": 0.025,
+      "precision": 0.01968503937007874,
       "recall": 0.2,
-      "f1": 0.04444444444444445,
-      "false_alarms_per_hour": 1193.1948329596648
-    },
-    {
-      "stride_s": 0.2,
-      "threshold": 0.4,
-      "min_consecutive": 1,
-      "suppression_s": 1.0,
-      "window_s": 1.0,
-      "precision": 0.023809523809523808,
-      "recall": 0.2,
-      "f1": 0.0425531914893617,
-      "false_alarms_per_hour": 1261.9128599887554
-    },
-    {
-      "stride_s": 0.2,
-      "threshold": 0.35,
-      "min_consecutive": 1,
-      "suppression_s": 1.0,
-      "window_s": 1.0,
-      "precision": 0.0228310502283105,
-      "recall": 0.2,
-      "f1": 0.040983606557377046,
-      "false_alarms_per_hour": 1318.1367002852842
-    },
-    {
-      "stride_s": 0.2,
-      "threshold": 0.3,
-      "min_consecutive": 1,
-      "suppression_s": 1.0,
-      "window_s": 1.0,
-      "precision": 0.02262443438914027,
-      "recall": 0.2,
-      "f1": 0.04065040650406504,
-      "false_alarms_per_hour": 1330.6308870178461
-    },
-    {
-      "stride_s": 0.25,
-      "threshold": 0.45,
-      "min_consecutive": 1,
-      "suppression_s": 1.0,
-      "window_s": 1.0,
-      "precision": 0.02030456852791878,
-      "recall": 0.16,
-      "f1": 0.036036036036036036,
-      "false_alarms_per_hour": 1168.206459494541
+      "f1": 0.035842293906810034,
+      "false_alarms_per_hour": 1524.290781372556
     },
     {
       "stride_s": 0.25,
@@ -142,21 +95,10 @@
       "min_consecutive": 1,
       "suppression_s": 1.0,
       "window_s": 1.0,
-      "precision": 0.02197802197802198,
+      "precision": 0.021052631578947368,
       "recall": 0.08,
-      "f1": 0.034482758620689655,
-      "false_alarms_per_hour": 537.2500295001632
-    },
-    {
-      "stride_s": 0.25,
-      "threshold": 0.4,
-      "min_consecutive": 1,
-      "suppression_s": 1.0,
-      "window_s": 1.0,
-      "precision": 0.01932367149758454,
-      "recall": 0.16,
-      "f1": 0.034482758620689655,
-      "false_alarms_per_hour": 1224.4302997910695
+      "f1": 0.03333333333333333,
+      "false_alarms_per_hour": 555.9913095990061
     },
     {
       "stride_s": 0.25,
@@ -164,10 +106,21 @@
       "min_consecutive": 1,
       "suppression_s": 1.0,
       "window_s": 1.0,
-      "precision": 0.018867924528301886,
-      "recall": 0.16,
-      "f1": 0.03375527426160337,
-      "false_alarms_per_hour": 1255.6657666224744
+      "precision": 0.018050541516245487,
+      "recall": 0.2,
+      "f1": 0.03311258278145695,
+      "false_alarms_per_hour": 1642.9855553318944
+    },
+    {
+      "stride_s": 0.2,
+      "threshold": 0.4,
+      "min_consecutive": 1,
+      "suppression_s": 1.0,
+      "window_s": 1.0,
+      "precision": 0.017985611510791366,
+      "recall": 0.2,
+      "f1": 0.033003300330033,
+      "false_alarms_per_hour": 1674.2210221632993
     },
     {
       "stride_s": 0.25,
@@ -175,10 +128,54 @@
       "min_consecutive": 1,
       "suppression_s": 1.0,
       "window_s": 1.0,
-      "precision": 0.018691588785046728,
-      "recall": 0.16,
-      "f1": 0.03347280334728033,
-      "false_alarms_per_hour": 1268.1599533550364
+      "precision": 0.017793594306049824,
+      "recall": 0.2,
+      "f1": 0.032679738562091505,
+      "false_alarms_per_hour": 1667.9739287970183
+    },
+    {
+      "stride_s": 0.2,
+      "threshold": 0.35,
+      "min_consecutive": 1,
+      "suppression_s": 1.0,
+      "window_s": 1.0,
+      "precision": 0.017241379310344827,
+      "recall": 0.2,
+      "f1": 0.031746031746031744,
+      "false_alarms_per_hour": 1749.1861425586708
+    },
+    {
+      "stride_s": 0.2,
+      "threshold": 0.3,
+      "min_consecutive": 1,
+      "suppression_s": 1.0,
+      "window_s": 1.0,
+      "precision": 0.017064846416382253,
+      "recall": 0.2,
+      "f1": 0.031446540880503145,
+      "false_alarms_per_hour": 1767.9274226575137
+    },
+    {
+      "stride_s": 0.25,
+      "threshold": 0.5,
+      "min_consecutive": 2,
+      "suppression_s": 1.0,
+      "window_s": 1.0,
+      "precision": 0.018018018018018018,
+      "recall": 0.08,
+      "f1": 0.029411764705882353,
+      "false_alarms_per_hour": 668.4389901920636
+    },
+    {
+      "stride_s": 0.25,
+      "threshold": 0.75,
+      "min_consecutive": 1,
+      "suppression_s": 1.0,
+      "window_s": 1.0,
+      "precision": 0.017857142857142856,
+      "recall": 0.08,
+      "f1": 0.029197080291970802,
+      "false_alarms_per_hour": 655.9448034595016
     }
   ],
   "note": "Frozen before any test Evaluation Run. Validation metrics here are optimistic."

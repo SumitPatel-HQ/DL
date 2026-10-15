@@ -36,9 +36,9 @@ test("confusion rows normalize to recall shares", () => {
 });
 
 test("unmet targets report the delta, never a redefined goal", () => {
-  const view = targetView({ metric: "event_f1", goal: 0.7, achieved: 0.007, met: false, note: "" });
+  const view = targetView({ metric: "event_f1", goal: 0.7, achieved: 0.01038961038961039, met: false, note: "" });
   assert.equal(view.status, "unmet");
-  assert.ok(Math.abs(view.delta + 0.693) < 1e-9);
+  assert.ok(Math.abs(view.delta + 0.6896103896103896) < 1e-9);
   assert.match(view.label, /unmet: event-F1 ≥ 0.70/);
 });
 

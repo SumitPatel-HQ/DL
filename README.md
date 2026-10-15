@@ -11,7 +11,7 @@ Evaluation Runs. See [E01 vs E02 results](docs/evaluations/isolated-v1/README.md
 E02 reaches test macro-F1 0.740, below the 0.85 target.
 Ticket 4 adds the experimental sliding-window detector and the continuous-event
 gate. See [continuous results](docs/evaluations/continuous-v1/README.md): on held-out
-natural AMI speech, event-F1 is 0.007 with 1,559 false alarms/hour. The gate
+natural AMI speech, event-F1 is 0.010 with 2,216 false alarms/hour. The gate
 decision is no-go for continuous spotting as a working feature
 ([ADR-0006](docs/adr/0006-sliding-window-gate-no-go.md)). Ticket 5 adds recording
 jobs and persistence. Ticket 6 adds the web app: Audio Analysis (`/analyze`) with a
@@ -19,6 +19,9 @@ linked waveform, Detection table and playback; Voice Control (`/live`) with an
 explicit mic session over a loopback WebSocket; and the Evaluation dashboard
 (`/dashboard`) built only from stored Evaluation Runs. See the
 [API contract](docs/backend-api.md).
+Ticket 7 adds the [validation report](docs/evaluations/validation-report.md)
+with per-story verdicts, the rerun proof, and the documented limits, plus the
+[faculty demo script](docs/demo.md).
 
 ## Setup on Windows
 
@@ -111,6 +114,30 @@ uv run --locked python -m ml.evaluate_continuous run --checkpoint ../artifacts/m
 another checkpoint or tolerance, or tuned on Recordings that overlap test. It
 reports event precision, recall and F1 with the ±0.5 s center-tolerance rule. It
 also reports false alarms/hour on annotated negatives and an error review.
+
+## Reproduction
+
+From the repository root, after preparing data and the E02 checkpoint:
+
+```powershell
+uv run --project backend python scripts/reproduce.py
+```
+
+This reruns the E02 isolated test Evaluation Run and the E02 continuous
+test run from the saved checkpoint and frozen configs, then checks every
+metric field against the committed files within exact tolerance. It exits
+0 with `RERUN PASS` only when all fields match (timings, timestamps, and
+checkpoint file bytes are machine measurements and are excluded). It
+needs the ignored local `data/` and `artifacts/models/` trees, so it is a
+standalone script, not part of `npm run check`.
+
+Full per-story verdicts, the failed-acceptance reports for the unmet
+hypotheses (isolated macro-F1 0.740 vs 0.85, event-F1 0.010 vs 0.70),
+the target-hardware gap, the unexecuted microphone protocol, and data
+attribution are in the [validation report](docs/evaluations/validation-report.md).
+The faculty walkthrough (upload to Detections to live actions to
+dashboard) is in the [demo script](docs/demo.md). Clean-vs-noisy
+comparison is explicitly out of P0 scope (roadmap item P1-03).
 
 ## Checks and reproducibility
 
