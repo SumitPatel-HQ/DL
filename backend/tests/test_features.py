@@ -82,3 +82,15 @@ def test_baseline_config_accepts_saved_feature_contract(tmp_path: Path) -> None:
     metadata = json.loads(artifact.read_text())
     assert baseline["features"] == metadata["features"]
     assert baseline["labels"] == metadata["labels"]
+
+
+def test_stream_features_match_window_features_on_one_second() -> None:
+    import numpy as np
+
+    from ml.features import FeaturePipeline
+
+    audio = np.random.default_rng(0).normal(0, 0.1, 16000).astype(np.float32)
+    pipeline = FeaturePipeline()
+    assert np.array_equal(pipeline.from_stream(audio, 16000), pipeline.from_audio(audio, 16000))
+    longer = np.concatenate([audio, audio])
+    assert pipeline.from_stream(longer, 16000).shape == (198, 40)

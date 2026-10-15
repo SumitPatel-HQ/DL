@@ -165,7 +165,16 @@ class FeaturePipeline:
 
     def from_audio(self, samples: NDArray[Any], sample_rate: int) -> Audio:
         audio = canonical_audio(samples, sample_rate)[:WINDOW_SAMPLES]
-        audio = np.pad(audio, (0, WINDOW_SAMPLES - len(audio)))
+        return self._mfcc(np.pad(audio, (0, WINDOW_SAMPLES - len(audio))))
+
+    def from_stream(self, samples: NDArray[Any], sample_rate: int) -> Audio:
+        """Same frames as `from_audio`, over audio of any length: no padding or truncation."""
+        audio = canonical_audio(samples, sample_rate)
+        if len(audio) < FRAME_SAMPLES:
+            raise ValueError("Audio is shorter than one frame")
+        return self._mfcc(audio)
+
+    def _mfcc(self, audio: Audio) -> Audio:
         frames = np.lib.stride_tricks.sliding_window_view(audio, FRAME_SAMPLES)[::HOP_SAMPLES]
         spectrum = np.abs(np.fft.rfft(frames * np.hamming(FRAME_SAMPLES), n=N_FFT)) ** 2 / N_FFT
         log_mel = np.log(np.maximum(spectrum @ self._filters.T, LOG_FLOOR))

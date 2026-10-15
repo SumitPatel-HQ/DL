@@ -1,0 +1,1619 @@
+{
+  "run_id": "t01-continuous-test-7db0c2ab9f0a",
+  "kind": "continuous",
+  "created_at": "2026-10-15T23:20:12.140571+00:00",
+  "code_revision": {
+    "commit": "8589920d8fd82505c03b5bb9b27d36dc11a17d70",
+    "dirty": true
+  },
+  "experiment_id": "T01",
+  "model_family": "temporal-bilstm-frame",
+  "experimental": true,
+  "checkpoint": {
+    "path": "t01/model.pt",
+    "sha256": "7db0c2ab9f0a92ba6b857656f25bc4f6024cb62ec567041a2abb4068bbdd17f8",
+    "experiment_id": "T01"
+  },
+  "detector": {
+    "config": {
+      "smooth_frames": 1,
+      "threshold": 0.65,
+      "min_frames": 3,
+      "suppression_s": 1.0
+    },
+    "tolerance_s": 0.5,
+    "match_rule": "same Keyword, Detection center within tolerance of the reference center, one-to-one",
+    "tuned_on": {
+      "dataset_version": "ami-natural-p0-v1",
+      "split_version": "in1002-test-global-speaker-disjoint-lexical-selection-v1",
+      "split": "validation",
+      "recordings": {
+        "ami-EN2004a-17603360-22403360": "4eeb67eaeb9b7f3ac9fe98b2eb2814d2bfd34c2777b44989850290a8b7067f8c",
+        "ami-EN2004a-47294400-52094400": "43079eb3641e4bee108c55705793dc45f5e87aae4b9da9685b8173d96f301d60"
+      }
+    },
+    "detector_created_at": "2026-10-15T23:19:48.495630+00:00",
+    "file_sha256": "0ae9f9cbc52b159d949436017081a9cb6f290486dcd277f522eb630d0992c202"
+  },
+  "dataset": {
+    "dataset_version": "ami-natural-p0-v1",
+    "split_version": "in1002-test-global-speaker-disjoint-lexical-selection-v1",
+    "split": "test",
+    "recordings": {
+      "ami-IN1002-7714240-17314240": "889a15a6ecd38901f8b2b2f0aee5d35803f0f7d98b6f7fbf4523bf565a70ca1e"
+    },
+    "condition": "clean",
+    "noise_sources": [],
+    "snr_db": null,
+    "noise_sources_by_split": {},
+    "composition": {
+      "recordings": 1,
+      "duration_s": 600.0,
+      "speaker_ids": [
+        "MIO022",
+        "MIO050",
+        "MIO076",
+        "MIO078"
+      ],
+      "keyword_events": {
+        "go": 3,
+        "stop": 1,
+        "up": 4,
+        "right": 6,
+        "left": 1,
+        "down": 1
+      },
+      "ignored_keyword_events": 0,
+      "annotated_seconds": {
+        "down": 0.2300000000000182,
+        "go": 0.45999999999998575,
+        "left": 0.269999999999996,
+        "right": 2.019999999999925,
+        "silence": 8.827000000000012,
+        "stop": 0.4299999999999997,
+        "unknown": 561.39,
+        "up": 1.2600000000000833
+      },
+      "unlabeled_seconds": 25.112999999999943,
+      "annotation_quality": "automatic, not manually verified"
+    }
+  },
+  "metrics": {
+    "true_positive": 2,
+    "false_positive": 52,
+    "false_negative": 14,
+    "precision": 0.037037037037037035,
+    "recall": 0.125,
+    "f1": 0.05714285714285714,
+    "per_keyword": {
+      "left": {
+        "true_positive": 0,
+        "false_positive": 5,
+        "false_negative": 1,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0
+      },
+      "right": {
+        "true_positive": 1,
+        "false_positive": 14,
+        "false_negative": 5,
+        "precision": 0.06666666666666667,
+        "recall": 0.16666666666666666,
+        "f1": 0.09523809523809522
+      },
+      "up": {
+        "true_positive": 0,
+        "false_positive": 8,
+        "false_negative": 4,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0
+      },
+      "down": {
+        "true_positive": 0,
+        "false_positive": 10,
+        "false_negative": 1,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0
+      },
+      "go": {
+        "true_positive": 1,
+        "false_positive": 5,
+        "false_negative": 2,
+        "precision": 0.16666666666666666,
+        "recall": 0.3333333333333333,
+        "f1": 0.2222222222222222
+      },
+      "stop": {
+        "true_positive": 0,
+        "false_positive": 10,
+        "false_negative": 1,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0
+      }
+    },
+    "ignored_matches": 0,
+    "false_positive_regions": {
+      "unknown": 50,
+      "unlabeled": 2
+    },
+    "false_alarms": {
+      "definition": "Unmatched Detections centered inside annotated Unknown or Silence spans, divided by the total duration of those spans. Unlabeled gaps are not negative exposure.",
+      "count": 50,
+      "negative_seconds": 570.217,
+      "per_hour": 315.66929782872137,
+      "by_region": {
+        "unknown": {
+          "count": 50,
+          "seconds": 561.39,
+          "per_hour": 320.6327152247101
+        },
+        "silence": {
+          "count": 0,
+          "seconds": 8.827000000000012,
+          "per_hour": 0.0
+        }
+      }
+    }
+  },
+  "target": {
+    "event_f1": 0.7,
+    "met": false,
+    "note": "Preliminary hypothesis target; unmet targets are reported, never redefined."
+  },
+  "baseline": {
+    "run_id": "e02-continuous-test-e47e49f57e81",
+    "file_sha256": "e47b16eceef46b94c56164e0634ea65403af1fdd35183e3572a1200db0fce60a",
+    "checkpoint_sha256": "e47e49f57e81a4d4352efece7c0af798c37527014117fe0ebc554129b4b7589d",
+    "dataset_version": "ami-natural-p0-v1",
+    "split_version": "in1002-test-global-speaker-disjoint-lexical-selection-v1",
+    "split": "test",
+    "event_f1": 0.01038961038961039,
+    "precision": 0.005420054200542005,
+    "recall": 0.125,
+    "false_alarms_per_hour": 2215.998470757624,
+    "tolerance_s": 0.5
+  },
+  "detections": {
+    "ami-IN1002-7714240-17314240": [
+      {
+        "keyword": "down",
+        "start_s": 18.61,
+        "end_s": 18.985,
+        "confidence": 0.9666314125061035,
+        "threshold": 0.65,
+        "windows": 36,
+        "center_s": 18.7975
+      },
+      {
+        "keyword": "down",
+        "start_s": 33.3,
+        "end_s": 33.355,
+        "confidence": 0.6959847807884216,
+        "threshold": 0.65,
+        "windows": 4,
+        "center_s": 33.3275
+      },
+      {
+        "keyword": "stop",
+        "start_s": 36.33,
+        "end_s": 36.415,
+        "confidence": 0.8775718808174133,
+        "threshold": 0.65,
+        "windows": 7,
+        "center_s": 36.3725
+      },
+      {
+        "keyword": "down",
+        "start_s": 36.42,
+        "end_s": 36.605,
+        "confidence": 0.9541451930999756,
+        "threshold": 0.65,
+        "windows": 17,
+        "center_s": 36.5125
+      },
+      {
+        "keyword": "right",
+        "start_s": 43.980000000000004,
+        "end_s": 44.245,
+        "confidence": 0.8632305860519409,
+        "threshold": 0.65,
+        "windows": 25,
+        "center_s": 44.1125
+      },
+      {
+        "keyword": "go",
+        "start_s": 45.910000000000004,
+        "end_s": 46.345,
+        "confidence": 0.986831545829773,
+        "threshold": 0.65,
+        "windows": 42,
+        "center_s": 46.1275
+      },
+      {
+        "keyword": "left",
+        "start_s": 55.33,
+        "end_s": 55.445,
+        "confidence": 0.8568528890609741,
+        "threshold": 0.65,
+        "windows": 10,
+        "center_s": 55.3875
+      },
+      {
+        "keyword": "down",
+        "start_s": 82.4,
+        "end_s": 82.465,
+        "confidence": 0.7299408912658691,
+        "threshold": 0.65,
+        "windows": 5,
+        "center_s": 82.4325
+      },
+      {
+        "keyword": "up",
+        "start_s": 92.99,
+        "end_s": 93.415,
+        "confidence": 0.9277995824813843,
+        "threshold": 0.65,
+        "windows": 41,
+        "center_s": 93.2025
+      },
+      {
+        "keyword": "left",
+        "start_s": 95.48,
+        "end_s": 95.73500000000001,
+        "confidence": 0.9735838770866394,
+        "threshold": 0.65,
+        "windows": 24,
+        "center_s": 95.60750000000002
+      },
+      {
+        "keyword": "right",
+        "start_s": 105.93,
+        "end_s": 106.36500000000001,
+        "confidence": 0.9574958682060242,
+        "threshold": 0.65,
+        "windows": 42,
+        "center_s": 106.14750000000001
+      },
+      {
+        "keyword": "up",
+        "start_s": 116.11,
+        "end_s": 116.19500000000001,
+        "confidence": 0.8112282752990723,
+        "threshold": 0.65,
+        "windows": 7,
+        "center_s": 116.1525
+      },
+      {
+        "keyword": "up",
+        "start_s": 120.5,
+        "end_s": 120.655,
+        "confidence": 0.9508211016654968,
+        "threshold": 0.65,
+        "windows": 14,
+        "center_s": 120.5775
+      },
+      {
+        "keyword": "stop",
+        "start_s": 122.08,
+        "end_s": 122.385,
+        "confidence": 0.9965384006500244,
+        "threshold": 0.65,
+        "windows": 29,
+        "center_s": 122.2325
+      },
+      {
+        "keyword": "right",
+        "start_s": 132.42000000000002,
+        "end_s": 132.485,
+        "confidence": 0.7735869884490967,
+        "threshold": 0.65,
+        "windows": 5,
+        "center_s": 132.45250000000001
+      },
+      {
+        "keyword": "down",
+        "start_s": 180.77,
+        "end_s": 180.94500000000002,
+        "confidence": 0.9400992393493652,
+        "threshold": 0.65,
+        "windows": 16,
+        "center_s": 180.85750000000002
+      },
+      {
+        "keyword": "right",
+        "start_s": 181.62,
+        "end_s": 182.735,
+        "confidence": 0.9921999573707581,
+        "threshold": 0.65,
+        "windows": 110,
+        "center_s": 182.1775
+      },
+      {
+        "keyword": "right",
+        "start_s": 183.55,
+        "end_s": 184.715,
+        "confidence": 0.9642546772956848,
+        "threshold": 0.65,
+        "windows": 115,
+        "center_s": 184.1325
+      },
+      {
+        "keyword": "go",
+        "start_s": 187.07,
+        "end_s": 187.145,
+        "confidence": 0.7339145541191101,
+        "threshold": 0.65,
+        "windows": 6,
+        "center_s": 187.10750000000002
+      },
+      {
+        "keyword": "stop",
+        "start_s": 195.68,
+        "end_s": 195.735,
+        "confidence": 0.8354302644729614,
+        "threshold": 0.65,
+        "windows": 4,
+        "center_s": 195.7075
+      },
+      {
+        "keyword": "right",
+        "start_s": 199.09,
+        "end_s": 200.705,
+        "confidence": 0.9860974550247192,
+        "threshold": 0.65,
+        "windows": 160,
+        "center_s": 199.8975
+      },
+      {
+        "keyword": "right",
+        "start_s": 201.1,
+        "end_s": 202.91500000000002,
+        "confidence": 0.9988588094711304,
+        "threshold": 0.65,
+        "windows": 180,
+        "center_s": 202.0075
+      },
+      {
+        "keyword": "right",
+        "start_s": 208.42000000000002,
+        "end_s": 208.595,
+        "confidence": 0.8695154786109924,
+        "threshold": 0.65,
+        "windows": 16,
+        "center_s": 208.5075
+      },
+      {
+        "keyword": "down",
+        "start_s": 211.74,
+        "end_s": 211.925,
+        "confidence": 0.7785346508026123,
+        "threshold": 0.65,
+        "windows": 17,
+        "center_s": 211.8325
+      },
+      {
+        "keyword": "right",
+        "start_s": 220.56,
+        "end_s": 220.66500000000002,
+        "confidence": 0.7449533939361572,
+        "threshold": 0.65,
+        "windows": 9,
+        "center_s": 220.6125
+      },
+      {
+        "keyword": "left",
+        "start_s": 242.24,
+        "end_s": 242.615,
+        "confidence": 0.8902126550674438,
+        "threshold": 0.65,
+        "windows": 36,
+        "center_s": 242.4275
+      },
+      {
+        "keyword": "left",
+        "start_s": 244.12,
+        "end_s": 244.44500000000002,
+        "confidence": 0.9317278861999512,
+        "threshold": 0.65,
+        "windows": 31,
+        "center_s": 244.28250000000003
+      },
+      {
+        "keyword": "up",
+        "start_s": 267.05,
+        "end_s": 267.195,
+        "confidence": 0.9238498210906982,
+        "threshold": 0.65,
+        "windows": 13,
+        "center_s": 267.1225
+      },
+      {
+        "keyword": "down",
+        "start_s": 271.55,
+        "end_s": 271.705,
+        "confidence": 0.9424734115600586,
+        "threshold": 0.65,
+        "windows": 14,
+        "center_s": 271.6275
+      },
+      {
+        "keyword": "go",
+        "start_s": 274.77,
+        "end_s": 274.825,
+        "confidence": 0.7182521820068359,
+        "threshold": 0.65,
+        "windows": 4,
+        "center_s": 274.7975
+      },
+      {
+        "keyword": "stop",
+        "start_s": 294.94,
+        "end_s": 295.055,
+        "confidence": 0.9189727902412415,
+        "threshold": 0.65,
+        "windows": 10,
+        "center_s": 294.9975
+      },
+      {
+        "keyword": "go",
+        "start_s": 295.09000000000003,
+        "end_s": 295.265,
+        "confidence": 0.9027329683303833,
+        "threshold": 0.65,
+        "windows": 16,
+        "center_s": 295.1775
+      },
+      {
+        "keyword": "right",
+        "start_s": 323.28000000000003,
+        "end_s": 323.35499999999996,
+        "confidence": 0.7330674529075623,
+        "threshold": 0.65,
+        "windows": 6,
+        "center_s": 323.3175
+      },
+      {
+        "keyword": "left",
+        "start_s": 350.8,
+        "end_s": 350.945,
+        "confidence": 0.8326245546340942,
+        "threshold": 0.65,
+        "windows": 13,
+        "center_s": 350.8725
+      },
+      {
+        "keyword": "go",
+        "start_s": 351.92,
+        "end_s": 351.965,
+        "confidence": 0.6789165735244751,
+        "threshold": 0.65,
+        "windows": 3,
+        "center_s": 351.9425
+      },
+      {
+        "keyword": "up",
+        "start_s": 358.03000000000003,
+        "end_s": 358.135,
+        "confidence": 0.7185274362564087,
+        "threshold": 0.65,
+        "windows": 9,
+        "center_s": 358.0825
+      },
+      {
+        "keyword": "stop",
+        "start_s": 372.39,
+        "end_s": 372.615,
+        "confidence": 0.894747257232666,
+        "threshold": 0.65,
+        "windows": 21,
+        "center_s": 372.5025
+      },
+      {
+        "keyword": "up",
+        "start_s": 372.65000000000003,
+        "end_s": 373.155,
+        "confidence": 0.9875075221061707,
+        "threshold": 0.65,
+        "windows": 49,
+        "center_s": 372.90250000000003
+      },
+      {
+        "keyword": "go",
+        "start_s": 374.0,
+        "end_s": 374.055,
+        "confidence": 0.7058282494544983,
+        "threshold": 0.65,
+        "windows": 4,
+        "center_s": 374.02750000000003
+      },
+      {
+        "keyword": "right",
+        "start_s": 379.21,
+        "end_s": 379.455,
+        "confidence": 0.903627872467041,
+        "threshold": 0.65,
+        "windows": 23,
+        "center_s": 379.3325
+      },
+      {
+        "keyword": "down",
+        "start_s": 397.54,
+        "end_s": 397.66499999999996,
+        "confidence": 0.772697925567627,
+        "threshold": 0.65,
+        "windows": 11,
+        "center_s": 397.60249999999996
+      },
+      {
+        "keyword": "stop",
+        "start_s": 399.84000000000003,
+        "end_s": 399.955,
+        "confidence": 0.9338986277580261,
+        "threshold": 0.65,
+        "windows": 10,
+        "center_s": 399.89750000000004
+      },
+      {
+        "keyword": "stop",
+        "start_s": 403.84000000000003,
+        "end_s": 404.005,
+        "confidence": 0.8028310537338257,
+        "threshold": 0.65,
+        "windows": 15,
+        "center_s": 403.9225
+      },
+      {
+        "keyword": "down",
+        "start_s": 417.89,
+        "end_s": 418.09499999999997,
+        "confidence": 0.8884578943252563,
+        "threshold": 0.65,
+        "windows": 19,
+        "center_s": 417.99249999999995
+      },
+      {
+        "keyword": "stop",
+        "start_s": 420.39,
+        "end_s": 420.59499999999997,
+        "confidence": 0.9705965518951416,
+        "threshold": 0.65,
+        "windows": 19,
+        "center_s": 420.49249999999995
+      },
+      {
+        "keyword": "right",
+        "start_s": 431.47,
+        "end_s": 431.615,
+        "confidence": 0.9402662515640259,
+        "threshold": 0.65,
+        "windows": 13,
+        "center_s": 431.5425
+      },
+      {
+        "keyword": "right",
+        "start_s": 434.65000000000003,
+        "end_s": 434.865,
+        "confidence": 0.8844674825668335,
+        "threshold": 0.65,
+        "windows": 20,
+        "center_s": 434.75750000000005
+      },
+      {
+        "keyword": "up",
+        "start_s": 441.81,
+        "end_s": 441.875,
+        "confidence": 0.6905766129493713,
+        "threshold": 0.65,
+        "windows": 5,
+        "center_s": 441.8425
+      },
+      {
+        "keyword": "down",
+        "start_s": 483.95,
+        "end_s": 484.35499999999996,
+        "confidence": 0.9713873863220215,
+        "threshold": 0.65,
+        "windows": 39,
+        "center_s": 484.1525
+      },
+      {
+        "keyword": "right",
+        "start_s": 486.06,
+        "end_s": 486.195,
+        "confidence": 0.7972986102104187,
+        "threshold": 0.65,
+        "windows": 12,
+        "center_s": 486.1275
+      },
+      {
+        "keyword": "up",
+        "start_s": 488.95,
+        "end_s": 488.995,
+        "confidence": 0.7512874603271484,
+        "threshold": 0.65,
+        "windows": 3,
+        "center_s": 488.97249999999997
+      },
+      {
+        "keyword": "stop",
+        "start_s": 506.23,
+        "end_s": 506.375,
+        "confidence": 0.9348992705345154,
+        "threshold": 0.65,
+        "windows": 13,
+        "center_s": 506.3025
+      },
+      {
+        "keyword": "right",
+        "start_s": 549.33,
+        "end_s": 549.405,
+        "confidence": 0.7053713202476501,
+        "threshold": 0.65,
+        "windows": 6,
+        "center_s": 549.3675000000001
+      },
+      {
+        "keyword": "stop",
+        "start_s": 577.72,
+        "end_s": 578.125,
+        "confidence": 0.9964755177497864,
+        "threshold": 0.65,
+        "windows": 39,
+        "center_s": 577.9225
+      }
+    ]
+  },
+  "error_review": {
+    "method": "Automatic categorization against automatic AMI references. Clips are listening aids; no human listening verdicts are recorded here.",
+    "example_clips": [
+      "true_positive-00-right-ami-IN1002-7714240-17314240-106.15s.wav",
+      "true_positive-01-go-ami-IN1002-7714240-17314240-351.94s.wav",
+      "false_negative-00-go-ami-IN1002-7714240-17314240-5.07s.wav",
+      "false_negative-01-stop-ami-IN1002-7714240-17314240-26.45s.wav",
+      "false_negative-02-go-ami-IN1002-7714240-17314240-53.62s.wav",
+      "false_negative-03-up-ami-IN1002-7714240-17314240-54.01s.wav",
+      "false_negative-04-up-ami-IN1002-7714240-17314240-57.27s.wav",
+      "false_positive-00-right-ami-IN1002-7714240-17314240-202.01s.wav",
+      "false_positive-01-stop-ami-IN1002-7714240-17314240-122.23s.wav",
+      "false_positive-02-stop-ami-IN1002-7714240-17314240-577.92s.wav",
+      "false_positive-03-right-ami-IN1002-7714240-17314240-182.18s.wav",
+      "false_positive-04-up-ami-IN1002-7714240-17314240-372.90s.wav"
+    ],
+    "true_positive": [
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "keyword": "right",
+        "reference_start_s": 105.9,
+        "reference_end_s": 106.33,
+        "detection": {
+          "keyword": "right",
+          "start_s": 105.93,
+          "end_s": 106.36500000000001,
+          "confidence": 0.9574958682060242,
+          "threshold": 0.65,
+          "windows": 42,
+          "center_s": 106.14750000000001
+        },
+        "center_error_s": 0.03249999999999886,
+        "example_clip": {
+          "file": "true_positive-00-right-ami-IN1002-7714240-17314240-106.15s.wav",
+          "start_s": 104.6475
+        }
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "keyword": "go",
+        "reference_start_s": 351.88,
+        "reference_end_s": 352.02,
+        "detection": {
+          "keyword": "go",
+          "start_s": 351.92,
+          "end_s": 351.965,
+          "confidence": 0.6789165735244751,
+          "threshold": 0.65,
+          "windows": 3,
+          "center_s": 351.9425
+        },
+        "center_error_s": -0.007499999999993179,
+        "example_clip": {
+          "file": "true_positive-01-go-ami-IN1002-7714240-17314240-351.94s.wav",
+          "start_s": 350.4425
+        }
+      }
+    ],
+    "false_negative": [
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "keyword": "go",
+        "reference_start_s": 5.0,
+        "reference_end_s": 5.14,
+        "nearest_window": {
+          "frame_start_s": 5.07,
+          "top_label": "background",
+          "top_score": 0.9281590580940247
+        },
+        "example_clip": {
+          "file": "false_negative-00-go-ami-IN1002-7714240-17314240-5.07s.wav",
+          "start_s": 3.57
+        }
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "keyword": "stop",
+        "reference_start_s": 26.23,
+        "reference_end_s": 26.66,
+        "nearest_window": {
+          "frame_start_s": 26.44,
+          "top_label": "background",
+          "top_score": 0.9760051369667053
+        },
+        "example_clip": {
+          "file": "false_negative-01-stop-ami-IN1002-7714240-17314240-26.45s.wav",
+          "start_s": 24.945
+        }
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "keyword": "go",
+        "reference_start_s": 53.53,
+        "reference_end_s": 53.71,
+        "nearest_window": {
+          "frame_start_s": 53.620000000000005,
+          "top_label": "background",
+          "top_score": 0.9203351140022278
+        },
+        "example_clip": {
+          "file": "false_negative-02-go-ami-IN1002-7714240-17314240-53.62s.wav",
+          "start_s": 52.12
+        }
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "keyword": "up",
+        "reference_start_s": 53.92,
+        "reference_end_s": 54.1,
+        "nearest_window": {
+          "frame_start_s": 54.01,
+          "top_label": "background",
+          "top_score": 0.9790694117546082
+        },
+        "example_clip": {
+          "file": "false_negative-03-up-ami-IN1002-7714240-17314240-54.01s.wav",
+          "start_s": 52.51
+        }
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "keyword": "up",
+        "reference_start_s": 57.08,
+        "reference_end_s": 57.47,
+        "nearest_window": {
+          "frame_start_s": 57.28,
+          "top_label": "background",
+          "top_score": 0.9987010955810547
+        },
+        "example_clip": {
+          "file": "false_negative-04-up-ami-IN1002-7714240-17314240-57.27s.wav",
+          "start_s": 55.775
+        }
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "keyword": "right",
+        "reference_start_s": 103.64,
+        "reference_end_s": 103.93,
+        "nearest_window": {
+          "frame_start_s": 103.78,
+          "top_label": "background",
+          "top_score": 0.9937951564788818
+        }
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "keyword": "left",
+        "reference_start_s": 105.55,
+        "reference_end_s": 105.82,
+        "nearest_window": {
+          "frame_start_s": 105.68,
+          "top_label": "background",
+          "top_score": 0.8687828183174133
+        }
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "keyword": "up",
+        "reference_start_s": 113.96,
+        "reference_end_s": 114.48,
+        "nearest_window": {
+          "frame_start_s": 114.22,
+          "top_label": "background",
+          "top_score": 0.9778949618339539
+        }
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "keyword": "right",
+        "reference_start_s": 236.62,
+        "reference_end_s": 236.93,
+        "nearest_window": {
+          "frame_start_s": 236.78,
+          "top_label": "background",
+          "top_score": 0.8956159949302673
+        }
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "keyword": "right",
+        "reference_start_s": 254.4,
+        "reference_end_s": 254.7,
+        "nearest_window": {
+          "frame_start_s": 254.55,
+          "top_label": "background",
+          "top_score": 0.9706405997276306
+        }
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "keyword": "right",
+        "reference_start_s": 511.6,
+        "reference_end_s": 511.77,
+        "nearest_window": {
+          "frame_start_s": 511.68,
+          "top_label": "background",
+          "top_score": 0.9237846732139587
+        }
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "keyword": "down",
+        "reference_start_s": 514.85,
+        "reference_end_s": 515.08,
+        "nearest_window": {
+          "frame_start_s": 514.96,
+          "top_label": "background",
+          "top_score": 0.8988317251205444
+        }
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "keyword": "right",
+        "reference_start_s": 543.32,
+        "reference_end_s": 543.84,
+        "nearest_window": {
+          "frame_start_s": 543.58,
+          "top_label": "background",
+          "top_score": 0.9489338994026184
+        }
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "keyword": "up",
+        "reference_start_s": 591.91,
+        "reference_end_s": 592.08,
+        "nearest_window": {
+          "frame_start_s": 592.0,
+          "top_label": "background",
+          "top_score": 0.965813159942627
+        }
+      }
+    ],
+    "false_positive": [
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "detection": {
+          "keyword": "right",
+          "start_s": 201.1,
+          "end_s": 202.91500000000002,
+          "confidence": 0.9988588094711304,
+          "threshold": 0.65,
+          "windows": 180,
+          "center_s": 202.0075
+        },
+        "annotated_region": "unknown",
+        "example_clip": {
+          "file": "false_positive-00-right-ami-IN1002-7714240-17314240-202.01s.wav",
+          "start_s": 200.5075
+        }
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "detection": {
+          "keyword": "stop",
+          "start_s": 122.08,
+          "end_s": 122.385,
+          "confidence": 0.9965384006500244,
+          "threshold": 0.65,
+          "windows": 29,
+          "center_s": 122.2325
+        },
+        "annotated_region": "unknown",
+        "example_clip": {
+          "file": "false_positive-01-stop-ami-IN1002-7714240-17314240-122.23s.wav",
+          "start_s": 120.7325
+        }
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "detection": {
+          "keyword": "stop",
+          "start_s": 577.72,
+          "end_s": 578.125,
+          "confidence": 0.9964755177497864,
+          "threshold": 0.65,
+          "windows": 39,
+          "center_s": 577.9225
+        },
+        "annotated_region": "unknown",
+        "example_clip": {
+          "file": "false_positive-02-stop-ami-IN1002-7714240-17314240-577.92s.wav",
+          "start_s": 576.4225
+        }
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "detection": {
+          "keyword": "right",
+          "start_s": 181.62,
+          "end_s": 182.735,
+          "confidence": 0.9921999573707581,
+          "threshold": 0.65,
+          "windows": 110,
+          "center_s": 182.1775
+        },
+        "annotated_region": "unknown",
+        "example_clip": {
+          "file": "false_positive-03-right-ami-IN1002-7714240-17314240-182.18s.wav",
+          "start_s": 180.6775
+        }
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "detection": {
+          "keyword": "up",
+          "start_s": 372.65000000000003,
+          "end_s": 373.155,
+          "confidence": 0.9875075221061707,
+          "threshold": 0.65,
+          "windows": 49,
+          "center_s": 372.90250000000003
+        },
+        "annotated_region": "unknown",
+        "example_clip": {
+          "file": "false_positive-04-up-ami-IN1002-7714240-17314240-372.90s.wav",
+          "start_s": 371.4025
+        }
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "detection": {
+          "keyword": "go",
+          "start_s": 45.910000000000004,
+          "end_s": 46.345,
+          "confidence": 0.986831545829773,
+          "threshold": 0.65,
+          "windows": 42,
+          "center_s": 46.1275
+        },
+        "annotated_region": "unknown"
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "detection": {
+          "keyword": "right",
+          "start_s": 199.09,
+          "end_s": 200.705,
+          "confidence": 0.9860974550247192,
+          "threshold": 0.65,
+          "windows": 160,
+          "center_s": 199.8975
+        },
+        "annotated_region": "unknown"
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "detection": {
+          "keyword": "left",
+          "start_s": 95.48,
+          "end_s": 95.73500000000001,
+          "confidence": 0.9735838770866394,
+          "threshold": 0.65,
+          "windows": 24,
+          "center_s": 95.60750000000002
+        },
+        "annotated_region": "unknown"
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "detection": {
+          "keyword": "down",
+          "start_s": 483.95,
+          "end_s": 484.35499999999996,
+          "confidence": 0.9713873863220215,
+          "threshold": 0.65,
+          "windows": 39,
+          "center_s": 484.1525
+        },
+        "annotated_region": "unknown"
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "detection": {
+          "keyword": "stop",
+          "start_s": 420.39,
+          "end_s": 420.59499999999997,
+          "confidence": 0.9705965518951416,
+          "threshold": 0.65,
+          "windows": 19,
+          "center_s": 420.49249999999995
+        },
+        "annotated_region": "unknown"
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "detection": {
+          "keyword": "down",
+          "start_s": 18.61,
+          "end_s": 18.985,
+          "confidence": 0.9666314125061035,
+          "threshold": 0.65,
+          "windows": 36,
+          "center_s": 18.7975
+        },
+        "annotated_region": "unknown"
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "detection": {
+          "keyword": "right",
+          "start_s": 183.55,
+          "end_s": 184.715,
+          "confidence": 0.9642546772956848,
+          "threshold": 0.65,
+          "windows": 115,
+          "center_s": 184.1325
+        },
+        "annotated_region": "unknown"
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "detection": {
+          "keyword": "down",
+          "start_s": 36.42,
+          "end_s": 36.605,
+          "confidence": 0.9541451930999756,
+          "threshold": 0.65,
+          "windows": 17,
+          "center_s": 36.5125
+        },
+        "annotated_region": "unknown"
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "detection": {
+          "keyword": "up",
+          "start_s": 120.5,
+          "end_s": 120.655,
+          "confidence": 0.9508211016654968,
+          "threshold": 0.65,
+          "windows": 14,
+          "center_s": 120.5775
+        },
+        "annotated_region": "unknown"
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "detection": {
+          "keyword": "down",
+          "start_s": 271.55,
+          "end_s": 271.705,
+          "confidence": 0.9424734115600586,
+          "threshold": 0.65,
+          "windows": 14,
+          "center_s": 271.6275
+        },
+        "annotated_region": "unknown"
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "detection": {
+          "keyword": "right",
+          "start_s": 431.47,
+          "end_s": 431.615,
+          "confidence": 0.9402662515640259,
+          "threshold": 0.65,
+          "windows": 13,
+          "center_s": 431.5425
+        },
+        "annotated_region": "unknown"
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "detection": {
+          "keyword": "down",
+          "start_s": 180.77,
+          "end_s": 180.94500000000002,
+          "confidence": 0.9400992393493652,
+          "threshold": 0.65,
+          "windows": 16,
+          "center_s": 180.85750000000002
+        },
+        "annotated_region": "unknown"
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "detection": {
+          "keyword": "stop",
+          "start_s": 506.23,
+          "end_s": 506.375,
+          "confidence": 0.9348992705345154,
+          "threshold": 0.65,
+          "windows": 13,
+          "center_s": 506.3025
+        },
+        "annotated_region": "unknown"
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "detection": {
+          "keyword": "stop",
+          "start_s": 399.84000000000003,
+          "end_s": 399.955,
+          "confidence": 0.9338986277580261,
+          "threshold": 0.65,
+          "windows": 10,
+          "center_s": 399.89750000000004
+        },
+        "annotated_region": "unlabeled"
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "detection": {
+          "keyword": "left",
+          "start_s": 244.12,
+          "end_s": 244.44500000000002,
+          "confidence": 0.9317278861999512,
+          "threshold": 0.65,
+          "windows": 31,
+          "center_s": 244.28250000000003
+        },
+        "annotated_region": "unknown"
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "detection": {
+          "keyword": "up",
+          "start_s": 92.99,
+          "end_s": 93.415,
+          "confidence": 0.9277995824813843,
+          "threshold": 0.65,
+          "windows": 41,
+          "center_s": 93.2025
+        },
+        "annotated_region": "unknown"
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "detection": {
+          "keyword": "up",
+          "start_s": 267.05,
+          "end_s": 267.195,
+          "confidence": 0.9238498210906982,
+          "threshold": 0.65,
+          "windows": 13,
+          "center_s": 267.1225
+        },
+        "annotated_region": "unknown"
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "detection": {
+          "keyword": "stop",
+          "start_s": 294.94,
+          "end_s": 295.055,
+          "confidence": 0.9189727902412415,
+          "threshold": 0.65,
+          "windows": 10,
+          "center_s": 294.9975
+        },
+        "annotated_region": "unknown"
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "detection": {
+          "keyword": "right",
+          "start_s": 379.21,
+          "end_s": 379.455,
+          "confidence": 0.903627872467041,
+          "threshold": 0.65,
+          "windows": 23,
+          "center_s": 379.3325
+        },
+        "annotated_region": "unknown"
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "detection": {
+          "keyword": "go",
+          "start_s": 295.09000000000003,
+          "end_s": 295.265,
+          "confidence": 0.9027329683303833,
+          "threshold": 0.65,
+          "windows": 16,
+          "center_s": 295.1775
+        },
+        "annotated_region": "unknown"
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "detection": {
+          "keyword": "stop",
+          "start_s": 372.39,
+          "end_s": 372.615,
+          "confidence": 0.894747257232666,
+          "threshold": 0.65,
+          "windows": 21,
+          "center_s": 372.5025
+        },
+        "annotated_region": "unknown"
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "detection": {
+          "keyword": "left",
+          "start_s": 242.24,
+          "end_s": 242.615,
+          "confidence": 0.8902126550674438,
+          "threshold": 0.65,
+          "windows": 36,
+          "center_s": 242.4275
+        },
+        "annotated_region": "unknown"
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "detection": {
+          "keyword": "down",
+          "start_s": 417.89,
+          "end_s": 418.09499999999997,
+          "confidence": 0.8884578943252563,
+          "threshold": 0.65,
+          "windows": 19,
+          "center_s": 417.99249999999995
+        },
+        "annotated_region": "unknown"
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "detection": {
+          "keyword": "right",
+          "start_s": 434.65000000000003,
+          "end_s": 434.865,
+          "confidence": 0.8844674825668335,
+          "threshold": 0.65,
+          "windows": 20,
+          "center_s": 434.75750000000005
+        },
+        "annotated_region": "unknown"
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "detection": {
+          "keyword": "stop",
+          "start_s": 36.33,
+          "end_s": 36.415,
+          "confidence": 0.8775718808174133,
+          "threshold": 0.65,
+          "windows": 7,
+          "center_s": 36.3725
+        },
+        "annotated_region": "unknown"
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "detection": {
+          "keyword": "right",
+          "start_s": 208.42000000000002,
+          "end_s": 208.595,
+          "confidence": 0.8695154786109924,
+          "threshold": 0.65,
+          "windows": 16,
+          "center_s": 208.5075
+        },
+        "annotated_region": "unknown"
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "detection": {
+          "keyword": "right",
+          "start_s": 43.980000000000004,
+          "end_s": 44.245,
+          "confidence": 0.8632305860519409,
+          "threshold": 0.65,
+          "windows": 25,
+          "center_s": 44.1125
+        },
+        "annotated_region": "unknown"
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "detection": {
+          "keyword": "left",
+          "start_s": 55.33,
+          "end_s": 55.445,
+          "confidence": 0.8568528890609741,
+          "threshold": 0.65,
+          "windows": 10,
+          "center_s": 55.3875
+        },
+        "annotated_region": "unknown"
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "detection": {
+          "keyword": "stop",
+          "start_s": 195.68,
+          "end_s": 195.735,
+          "confidence": 0.8354302644729614,
+          "threshold": 0.65,
+          "windows": 4,
+          "center_s": 195.7075
+        },
+        "annotated_region": "unknown"
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "detection": {
+          "keyword": "left",
+          "start_s": 350.8,
+          "end_s": 350.945,
+          "confidence": 0.8326245546340942,
+          "threshold": 0.65,
+          "windows": 13,
+          "center_s": 350.8725
+        },
+        "annotated_region": "unknown"
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "detection": {
+          "keyword": "up",
+          "start_s": 116.11,
+          "end_s": 116.19500000000001,
+          "confidence": 0.8112282752990723,
+          "threshold": 0.65,
+          "windows": 7,
+          "center_s": 116.1525
+        },
+        "annotated_region": "unknown"
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "detection": {
+          "keyword": "stop",
+          "start_s": 403.84000000000003,
+          "end_s": 404.005,
+          "confidence": 0.8028310537338257,
+          "threshold": 0.65,
+          "windows": 15,
+          "center_s": 403.9225
+        },
+        "annotated_region": "unknown"
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "detection": {
+          "keyword": "right",
+          "start_s": 486.06,
+          "end_s": 486.195,
+          "confidence": 0.7972986102104187,
+          "threshold": 0.65,
+          "windows": 12,
+          "center_s": 486.1275
+        },
+        "annotated_region": "unknown"
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "detection": {
+          "keyword": "down",
+          "start_s": 211.74,
+          "end_s": 211.925,
+          "confidence": 0.7785346508026123,
+          "threshold": 0.65,
+          "windows": 17,
+          "center_s": 211.8325
+        },
+        "annotated_region": "unknown"
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "detection": {
+          "keyword": "right",
+          "start_s": 132.42000000000002,
+          "end_s": 132.485,
+          "confidence": 0.7735869884490967,
+          "threshold": 0.65,
+          "windows": 5,
+          "center_s": 132.45250000000001
+        },
+        "annotated_region": "unknown"
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "detection": {
+          "keyword": "down",
+          "start_s": 397.54,
+          "end_s": 397.66499999999996,
+          "confidence": 0.772697925567627,
+          "threshold": 0.65,
+          "windows": 11,
+          "center_s": 397.60249999999996
+        },
+        "annotated_region": "unknown"
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "detection": {
+          "keyword": "up",
+          "start_s": 488.95,
+          "end_s": 488.995,
+          "confidence": 0.7512874603271484,
+          "threshold": 0.65,
+          "windows": 3,
+          "center_s": 488.97249999999997
+        },
+        "annotated_region": "unknown"
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "detection": {
+          "keyword": "right",
+          "start_s": 220.56,
+          "end_s": 220.66500000000002,
+          "confidence": 0.7449533939361572,
+          "threshold": 0.65,
+          "windows": 9,
+          "center_s": 220.6125
+        },
+        "annotated_region": "unlabeled"
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "detection": {
+          "keyword": "go",
+          "start_s": 187.07,
+          "end_s": 187.145,
+          "confidence": 0.7339145541191101,
+          "threshold": 0.65,
+          "windows": 6,
+          "center_s": 187.10750000000002
+        },
+        "annotated_region": "unknown"
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "detection": {
+          "keyword": "right",
+          "start_s": 323.28000000000003,
+          "end_s": 323.35499999999996,
+          "confidence": 0.7330674529075623,
+          "threshold": 0.65,
+          "windows": 6,
+          "center_s": 323.3175
+        },
+        "annotated_region": "unknown"
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "detection": {
+          "keyword": "down",
+          "start_s": 82.4,
+          "end_s": 82.465,
+          "confidence": 0.7299408912658691,
+          "threshold": 0.65,
+          "windows": 5,
+          "center_s": 82.4325
+        },
+        "annotated_region": "unknown"
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "detection": {
+          "keyword": "up",
+          "start_s": 358.03000000000003,
+          "end_s": 358.135,
+          "confidence": 0.7185274362564087,
+          "threshold": 0.65,
+          "windows": 9,
+          "center_s": 358.0825
+        },
+        "annotated_region": "unknown"
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "detection": {
+          "keyword": "go",
+          "start_s": 274.77,
+          "end_s": 274.825,
+          "confidence": 0.7182521820068359,
+          "threshold": 0.65,
+          "windows": 4,
+          "center_s": 274.7975
+        },
+        "annotated_region": "unknown"
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "detection": {
+          "keyword": "go",
+          "start_s": 374.0,
+          "end_s": 374.055,
+          "confidence": 0.7058282494544983,
+          "threshold": 0.65,
+          "windows": 4,
+          "center_s": 374.02750000000003
+        },
+        "annotated_region": "unknown"
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "detection": {
+          "keyword": "right",
+          "start_s": 549.33,
+          "end_s": 549.405,
+          "confidence": 0.7053713202476501,
+          "threshold": 0.65,
+          "windows": 6,
+          "center_s": 549.3675000000001
+        },
+        "annotated_region": "unknown"
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "detection": {
+          "keyword": "down",
+          "start_s": 33.3,
+          "end_s": 33.355,
+          "confidence": 0.6959847807884216,
+          "threshold": 0.65,
+          "windows": 4,
+          "center_s": 33.3275
+        },
+        "annotated_region": "unknown"
+      },
+      {
+        "recording_id": "ami-IN1002-7714240-17314240",
+        "detection": {
+          "keyword": "up",
+          "start_s": 441.81,
+          "end_s": 441.875,
+          "confidence": 0.6905766129493713,
+          "threshold": 0.65,
+          "windows": 5,
+          "center_s": 441.8425
+        },
+        "annotated_region": "unknown"
+      }
+    ]
+  },
+  "limitations": [
+    "Reference word timings are AMI forced alignment, not manually verified.",
+    "Silence spans are inferred from annotation gaps plus low RMS.",
+    "Keyword counts per split are small; per-Keyword metrics are not reliable.",
+    "Detection spans come from frame labels and only approximate word boundaries.",
+    "Experimental prototype; Confidence is a smoothed frame score, not correctness."
+  ],
+  "runtime": {
+    "machine": {
+      "os": "Windows-11-10.0.26300-SP0",
+      "cpu": "AMD64 Family 23 Model 104 Stepping 1, AuthenticAMD"
+    },
+    "scoring_seconds": 4.295612000001711,
+    "real_time_factor": 0.007159353333336184,
+    "peak_rss_bytes": 791822336
+  }
+}

@@ -292,16 +292,29 @@ export function ContinuousView({ run }: { run: ContinuousRun }) {
   const events = m.true_positive + m.false_negative;
   const c = run.composition;
   const config = run.provenance.config;
+  const detectorFile = shortHash(run.provenance.config_sha256, 12);
   return (
     <>
       <div style={{ marginBottom: 16 }}>
-        <Banner tone="experimental" title="Experimental: sliding-window detector, frozen before test">
-          These numbers measure the frozen operating point · stride <b>{config.stride_s} s</b> · threshold{" "}
-          <b>{config.threshold}</b> · min consecutive <b>{config.min_consecutive}</b> · suppression{" "}
-          <b>{config.suppression_s} s</b> · detector config <code>{shortHash(run.provenance.config_sha256, 12)}</code>,
-          tuned on the <b>{run.detector.tuned_on.split}</b> split only. {run.confidence_note} Continuous runs never
-          report accuracy. Per ADR-0006 this is not a working continuous spotting feature.
-        </Banner>
+        {"smooth_frames" in config ? (
+          <Banner tone="experimental" title="Experimental: temporal BiLSTM prototype, frozen before test">
+            Run <code>{run.id}</code> (<code>docs/evaluations/temporal-v1</code>). These numbers measure the frozen
+            operating point · smoothing <b>{config.smooth_frames} frames</b> · threshold <b>{config.threshold}</b> ·
+            min frames <b>{config.min_frames}</b> · suppression <b>{config.suppression_s} s</b> · detector config{" "}
+            <code>{detectorFile}</code>, tuned on the <b>{run.detector.tuned_on.split}</b> split only. Confidence is a
+            smoothed frame score, not correctness. Continuous runs never report accuracy. This prototype does not
+            replace the isolated classifier, and the {run.target.goal} event-F1 target is reported, never redefined.
+            See ADR-0007.
+          </Banner>
+        ) : (
+          <Banner tone="experimental" title="Experimental: sliding-window detector, frozen before test">
+            These numbers measure the frozen operating point · stride <b>{config.stride_s} s</b> · threshold{" "}
+            <b>{config.threshold}</b> · min consecutive <b>{config.min_consecutive}</b> · suppression{" "}
+            <b>{config.suppression_s} s</b> · detector config <code>{detectorFile}</code>,
+            tuned on the <b>{run.detector.tuned_on.split}</b> split only. {run.confidence_note} Continuous runs never
+            report accuracy. Per ADR-0006 this is not a working continuous spotting feature.
+          </Banner>
+        )}
       </div>
       <div className="tiles">
         <TargetTile

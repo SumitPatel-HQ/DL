@@ -12,10 +12,10 @@ that never replaces the isolated-classifier core until it passes the gate.
 
 **Blocked by:** P0-07 (acceptance report). Uses frozen detector file + test split from `docs/evaluations/continuous-v1/`.
 
-**Status:** ready-for-agent
+**Status:** done. Verdict: keep experimental ([ADR-0007](../adr/0007-temporal-prototype-keep-experimental.md), [runs](../evaluations/temporal-v1/README.md)). Test event-F1 0.057 vs the 0.010 baseline; the 0.70 target is unmet.
 
-- [ ] Prototype emits Detections in the existing shape through the existing Detector interface seam (no new serving contract)
-- [ ] Tuning uses validation only; test split, tolerance, and match rule are unchanged and frozen before test
-- [ ] Run reports event precision/recall/F1 + false alarms/hour with error review, directly comparable to the 0.010 baseline
-- [ ] Gate verdict is recorded (adopt / bounded retune / keep experimental); the 0.70 target is reported as met or unmet, never redefined
-- [ ] UI (if any) labels the prototype experimental with Confidence-only language and links the run
+- [x] Prototype emits Detections in the existing shape through the existing Detector interface seam (no new serving contract)
+- [x] Tuning uses validation only; test split, tolerance, and match rule are unchanged and frozen before test
+- [x] Run reports event precision/recall/F1 + false alarms/hour with error review, directly comparable to the 0.010 baseline
+- [x] Gate verdict is recorded (adopt / bounded retune / keep experimental); the 0.70 target is reported as met or unmet, never redefined
+- [x] UI (if any) labels the prototype experimental with Confidence-only language and links the run

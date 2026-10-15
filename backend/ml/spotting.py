@@ -137,11 +137,15 @@ def detect(
                 )
             )
         first = i
+    return suppress_duplicates(candidates, config.suppression_s)
+
+
+def suppress_duplicates(candidates: list[Detection], suppression_s: float) -> list[Detection]:
+    """Per-Keyword suppression: of Detections with centers closer than the limit, keep the best."""
     kept: list[Detection] = []
     for candidate in sorted(candidates, key=lambda d: (-d.confidence, d.start_s)):
         if all(
-            d.keyword != candidate.keyword
-            or abs(candidate.center_s - d.center_s) >= config.suppression_s
+            d.keyword != candidate.keyword or abs(candidate.center_s - d.center_s) >= suppression_s
             for d in kept
         ):
             kept.append(candidate)

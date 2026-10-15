@@ -138,6 +138,9 @@ attribution are in the [validation report](docs/evaluations/validation-report.md
 The faculty walkthrough (upload to Detections to live actions to
 dashboard) is in the [demo script](docs/demo.md). The P1-03 clean-vs-noisy
 comparison and its protocol are in [noise-v1](docs/evaluations/noise-v1/README.md).
+The P1-04 temporal BiLSTM prototype (experimental, event-F1 0.057 on test, target unmet) is
+in [temporal-v1](docs/evaluations/temporal-v1/README.md) and
+[ADR-0007](docs/adr/0007-temporal-prototype-keep-experimental.md).
 
 ## Checks and reproducibility
 

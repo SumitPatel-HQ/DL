@@ -29,6 +29,14 @@ export type DetectorConfig = {
   window_s: number;
 };
 
+/** Post-processing of the temporal prototype (ADR-0007); no sliding window. */
+export type TemporalConfig = {
+  smooth_frames: number;
+  threshold: number;
+  min_frames: number;
+  suppression_s: number;
+};
+
 export type Recording = {
   id: string;
   filename: string;
@@ -171,7 +179,8 @@ export type EventCounts = {
 export type ContinuousRun = RunSummary & {
   kind: "continuous";
   experimental: true;
-  provenance: Provenance & { config: DetectorConfig };
+  model_family: "sliding-window" | "temporal-bilstm-frame";
+  provenance: Provenance & { config: DetectorConfig | TemporalConfig };
   metrics: EventCounts & {
     detections: number;
     false_alarms: {

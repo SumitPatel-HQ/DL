@@ -244,6 +244,8 @@ class ContinuousMetrics(KeywordMetrics):
 
 class ContinuousRun(Run):
     kind: Literal["continuous"]
+    # Runs written before the temporal prototype are all sliding-window runs.
+    model_family: str = "sliding-window"
     detector: Detector
     dataset: ContinuousDataset
     metrics: ContinuousMetrics
@@ -495,6 +497,7 @@ class EvaluationService:
                 for keyword, counts in scored.per_keyword.items()
             ],
         }
+        detail["model_family"] = run.model_family
         detail["detector"] = run.detector.model_dump(exclude={"config", "file_sha256"})
         detail["composition"] = run.dataset.composition.model_dump()
         detail["limitations"] = run.limitations

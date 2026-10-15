@@ -22,6 +22,7 @@ ISOLATED = {
     "e02-isolated-validation-e47e49f57e81",
 }
 CONTINUOUS = {"e02-continuous-test-e47e49f57e81", "e02-continuous-validation-e47e49f57e81"}
+TEMPORAL = {"t01-continuous-test-7db0c2ab9f0a", "t01-continuous-validation-7db0c2ab9f0a"}
 NOISE_ISOLATED = {
     "e02-isolated-test-clean-e47e49f57e81",
     "e02-isolated-test-noisy-e47e49f57e81",
@@ -56,14 +57,14 @@ def test_importing_committed_runs_lists_each_with_provenance(tmp_path: Path) -> 
         assert response.status_code == 200
         assert (
             set(response.json()["imported"])
-            == ISOLATED | CONTINUOUS | NOISE_ISOLATED | NOISE_CONTINUOUS
+            == ISOLATED | CONTINUOUS | TEMPORAL | NOISE_ISOLATED | NOISE_CONTINUOUS
         )
         assert response.json()["rejected"] == []
 
         listing = client.get("/api/evaluations").json()
         assert listing["code"] == "runs_available"
         runs = {run["id"]: run for run in listing["runs"]}
-        assert set(runs) == ISOLATED | CONTINUOUS | NOISE_ISOLATED | NOISE_CONTINUOUS
+        assert set(runs) == ISOLATED | CONTINUOUS | TEMPORAL | NOISE_ISOLATED | NOISE_CONTINUOUS
         assert {runs[run]["kind"] for run in ISOLATED} == {"isolated"}
         assert {runs[run]["kind"] for run in CONTINUOUS} == {"continuous"}
 
@@ -179,6 +180,7 @@ def test_run_detail_comes_from_that_run_alone(tmp_path: Path) -> None:
         events = client.get("/api/evaluations/e02-continuous-test-e47e49f57e81").json()
         assert events["kind"] == "continuous"
         assert events["experimental"] is True
+        assert events["model_family"] == "sliding-window"
         assert events["provenance"]["config"] == {
             "stride_s": 0.2,
             "threshold": 0.5,
@@ -238,7 +240,9 @@ def test_deleted_runs_stay_deleted_and_leave_explicit_empty_state(tmp_path: Path
         assert gone.json()["error"]["code"] == "evaluation_not_found"
         assert client.delete(f"/api/evaluations/{run}").status_code == 404
         remaining = {item["id"] for item in client.get("/api/evaluations").json()["runs"]}
-        assert remaining == (ISOLATED | CONTINUOUS | NOISE_ISOLATED | NOISE_CONTINUOUS) - {run}
+        assert remaining == (
+            ISOLATED | CONTINUOUS | TEMPORAL | NOISE_ISOLATED | NOISE_CONTINUOUS
+        ) - {run}
 
     # Deletion persists across restart; nothing re-imports runs implicitly.
     with open_client(config) as client:
@@ -352,9 +356,9 @@ def test_store_from_before_evaluation_api_upgrades_reserved_table(tmp_path: Path
     legacy.close()
     with open_client(config) as client:
         assert client.post("/api/evaluations/import").status_code == 200
-        assert len(client.get("/api/evaluations").json()["runs"]) == 10
+        assert len(client.get("/api/evaluations").json()["runs"]) == 12
     with open_client(config) as client:
-        assert len(client.get("/api/evaluations").json()["runs"]) == 10
+        assert len(client.get("/api/evaluations").json()["runs"]) == 12
 
 
 def test_compare_matched_isolated_pair_reads_both_runs_side_by_side(
@@ -727,3 +731,36 @@ def test_noisy_run_without_noise_sources_or_snr_is_rejected(tmp_path: Path) -> N
         body = client.post("/api/evaluations/import").json()
         assert body["imported"] == []
         assert len(body["rejected"]) == 1
+
+
+def test_temporal_prototype_run_is_experimental_and_comparable_to_the_baseline(
+    tmp_path: Path,
+) -> None:
+    document = json.loads(
+        (COMMITTED / "temporal-v1" / "t01-continuous-test.json").read_text("utf-8")
+    )
+    baseline = json.loads(
+        (COMMITTED / "continuous-v1" / "e02-continuous-test.json").read_text("utf-8")
+    )
+    # Same frozen protocol and held-out split as the sliding-window baseline.
+    assert document["baseline"]["run_id"] == baseline["run_id"]
+    assert document["baseline"]["event_f1"] == baseline["metrics"]["f1"]
+    assert document["detector"]["tolerance_s"] == baseline["detector"]["tolerance_s"] == 0.5
+    assert document["detector"]["match_rule"] == baseline["detector"]["match_rule"]
+    assert document["dataset"]["split_version"] == baseline["dataset"]["split_version"]
+    assert document["dataset"]["recordings"] == baseline["dataset"]["recordings"]
+    # Tuned on validation only, never on the test Recordings.
+    assert document["detector"]["tuned_on"]["split"] == "validation"
+    assert set(document["detector"]["tuned_on"]["recordings"].values()).isdisjoint(
+        document["dataset"]["recordings"].values()
+    )
+    with open_client(settings(tmp_path)) as client:
+        client.post("/api/evaluations/import")
+        run = client.get(f"/api/evaluations/{document['run_id']}").json()
+    assert run["experimental"] is True and run["model_family"] == "temporal-bilstm-frame"
+    metrics = run["metrics"]
+    # The 0.70 target is reported as met or unmet, never redefined.
+    assert run["target"]["goal"] == 0.70
+    assert run["target"]["met"] is (metrics["f1"] >= 0.70)
+    assert run["target"]["achieved"] == metrics["f1"]
+    assert metrics["true_positive"] + metrics["false_negative"] == 16

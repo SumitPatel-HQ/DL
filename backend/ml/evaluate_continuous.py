@@ -13,6 +13,7 @@ import platform
 import time
 import wave
 from collections import Counter, defaultdict
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
@@ -30,6 +31,7 @@ from ml.features.pipeline import SAMPLE_RATE, Audio
 from ml.metrics import event_scores, false_alarms_per_hour, match_events, span_center
 from ml.runtime import code_revision, peak_rss_bytes
 from ml.spotting import KEYWORDS, Detection, DetectorConfig, WindowScores, detect, score_windows
+from ml.temporal import LoadedTemporal
 
 DETECTOR_FORMAT = "kws-detector-v1"
 TOLERANCE_S = 0.5
@@ -324,8 +326,9 @@ def nearest_window(scores: WindowScores, time_s: float) -> dict[str, Any]:
 
 def error_review(
     data: ContinuousSplit,
-    scores: dict[str, WindowScores],
+    scores: Mapping[str, Any],
     results: list[dict[str, Any]],
+    nearest: Callable[[Any, float], dict[str, Any]] = nearest_window,
 ) -> dict[str, list[dict[str, Any]]]:
     review: dict[str, list[dict[str, Any]]] = {
         "true_positive": [],
@@ -352,7 +355,7 @@ def error_review(
                     "keyword": ref.label,
                     "reference_start_s": ref.start_s,
                     "reference_end_s": ref.end_s,
-                    "nearest_window": nearest_window(window, ref.center_s),
+                    "nearest_window": nearest(window, ref.center_s),
                 }
             )
         for detection, region in result["false_positive"]:
@@ -394,9 +397,14 @@ def write_examples(
     return written
 
 
-def check_frozen(detector: dict[str, Any], loaded: LoadedModel, data: ContinuousSplit) -> None:
+def check_frozen(
+    detector: dict[str, Any],
+    loaded: LoadedModel | LoadedTemporal,
+    data: ContinuousSplit,
+    detector_format: str = DETECTOR_FORMAT,
+) -> None:
     """Reject detector files that could have seen test data or belong to another model."""
-    if detector.get("format") != DETECTOR_FORMAT:
+    if detector.get("format") != detector_format:
         raise ValueError("Unsupported detector file")
     if detector["checkpoint"]["sha256"] != loaded.sha256:
         raise ValueError("Detector was tuned for a different checkpoint")

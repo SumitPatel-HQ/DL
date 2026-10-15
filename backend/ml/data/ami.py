@@ -58,8 +58,12 @@ class Clip:
         return f"ami-{self.meeting_id}-{round(self.start_s * 16000)}-{round(self.end_s * 16000)}"
 
 
-def load_annotations(path: Path) -> Corpus:
-    """Read global identities and all timed lexical/nonverbal events, not XML gaps."""
+def load_annotations(path: Path, *, include_scenario: bool = False) -> Corpus:
+    """Read global identities and all timed lexical/nonverbal events, not XML gaps.
+
+    `include_scenario` also keeps scripted-scenario meetings (ES/IS/TS), which are
+    training data only: evaluation crops stay natural.
+    """
     meetings: dict[str, Meeting] = {}
     speakers: dict[tuple[str, str], str] = {}
     words: dict[str, list[Word]] = defaultdict(list)
@@ -82,7 +86,7 @@ def load_annotations(path: Path) -> Corpus:
             if not name.startswith("words/") or not name.endswith(".words.xml"):
                 continue
             meeting_id, agent, _, _ = Path(name).name.split(".")
-            if not meetings[meeting_id].natural:
+            if not (include_scenario or meetings[meeting_id].natural):
                 continue
             elements = ET.fromstring(archive.read(name))
             if len(elements) == 0:
