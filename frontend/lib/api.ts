@@ -198,6 +198,15 @@ export type ContinuousRun = RunSummary & {
 
 export type RunDetail = IsolatedRun | ContinuousRun;
 
+export type Comparison = {
+  code: "comparison_available";
+  kind: RunKind;
+  dataset_version: string;
+  split_version: string;
+  split: string;
+  runs: [RunDetail, RunDetail];
+};
+
 export type ActionMap = {
   version: number;
   actions: { keyword: string; action: string; label: string }[];
@@ -276,6 +285,10 @@ export const api = {
     ),
   deleteEvaluation: (id: string) =>
     request<void>(`/api/evaluations/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  compareEvaluations: (runA: string, runB: string) =>
+    request<Comparison>(
+      `/api/evaluations/compare?run_a=${encodeURIComponent(runA)}&run_b=${encodeURIComponent(runB)}`,
+    ),
   actions: () => request<ActionMap>("/api/actions"),
   /** Deprecated alias for actions(). Kept for backward compatibility. */
   commands: () => request<CommandMap>("/api/commands"),

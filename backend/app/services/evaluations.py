@@ -277,6 +277,15 @@ CONFIDENCE_NOTE = (
 )
 
 
+DatasetKey = tuple[str, str, str]
+
+
+def dataset_key(run: EvaluationRun) -> DatasetKey:
+    """Identity a comparison requires: dataset version, split version, split."""
+    dataset = run.dataset
+    return (dataset.dataset_version, dataset.split_version, dataset.split)
+
+
 def provenance(run: EvaluationRun) -> dict[str, Any]:
     if isinstance(run, IsolatedRun):
         role, config_sha256 = "training", run.config_sha256
@@ -427,6 +436,58 @@ class EvaluationService:
             deleted = db.execute("DELETE FROM evaluation_runs WHERE id=?", (run_id,)).rowcount
         if not deleted:
             raise ServiceError("evaluation_not_found", "Evaluation Run does not exist.", 404)
+
+    def compare(self, run_a_id: str, run_b_id: str) -> dict[str, Any]:
+        """Side-by-side view over two stored runs of the same kind and dataset/split.
+
+        Reads only stored runs; mismatched kinds or dataset/split versions are
+        rejected with an actionable error. Isolated and continuous numbers never
+        share a response: each run keeps its own detail shape from get().
+        """
+        with self.store.transaction() as db:
+            row_a = db.execute(
+                "SELECT source,document_json FROM evaluation_runs WHERE id=?", (run_a_id,)
+            ).fetchone()
+            row_b = db.execute(
+                "SELECT source,document_json FROM evaluation_runs WHERE id=?", (run_b_id,)
+            ).fetchone()
+        if row_a is None or row_b is None:
+            missing = run_a_id if row_a is None else run_b_id
+            raise ServiceError(
+                "evaluation_not_found",
+                f"Evaluation Run {missing} does not exist; comparison views clear "
+                "to Not evaluated with no fallback to another run.",
+                404,
+            )
+        run_a = DOCUMENT.validate_json(row_a[1])
+        run_b = DOCUMENT.validate_json(row_b[1])
+        if run_a.kind != run_b.kind:
+            raise ServiceError(
+                "comparison_kind_mismatch",
+                f"Runs are different kinds ({run_a.kind} vs {run_b.kind}) and never "
+                "share a view. Pick two isolated or two continuous runs.",
+                400,
+            )
+        if dataset_key(run_a) != dataset_key(run_b):
+            raise ServiceError(
+                "comparison_dataset_mismatch",
+                "Runs use different datasets or splits "
+                f"({run_a.dataset.dataset_version}/{run_a.dataset.split_version}/"
+                f"{run_a.dataset.split} vs {run_b.dataset.dataset_version}/"
+                f"{run_b.dataset.split_version}/{run_b.dataset.split}). Pick two runs "
+                "with identical dataset version, split version, and split.",
+                400,
+            )
+        detail_a = self.get(run_a_id)
+        detail_b = self.get(run_b_id)
+        return {
+            "code": "comparison_available",
+            "kind": run_a.kind,
+            "dataset_version": run_a.dataset.dataset_version,
+            "split_version": run_a.dataset.split_version,
+            "split": run_a.dataset.split,
+            "runs": [detail_a, detail_b],
+        }
 
     @staticmethod
     def _summary(run: EvaluationRun, source: str) -> dict[str, Any]:

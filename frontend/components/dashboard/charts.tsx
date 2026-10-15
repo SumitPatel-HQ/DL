@@ -41,7 +41,7 @@ export function LineChart({
   format: (value: number) => string;
   hover: number | null;
   onHover: (index: number | null) => void;
-  bestEpoch: number;
+  bestEpoch: number | number[];
   reference?: { value: number; label: string };
   height?: number;
 }) {
@@ -53,6 +53,7 @@ export function LineChart({
   const yMax = ticks[ticks.length - 1];
   const first = epochs[0] ?? 1;
   const last = epochs[epochs.length - 1] ?? 1;
+  const bestEpochs = [...new Set(Array.isArray(bestEpoch) ? bestEpoch : [bestEpoch])].sort((p, q) => p - q);
   const x = (epoch: number) => M.left + ((epoch - first) / Math.max(1, last - first)) * plotW;
   const y = (value: number) => M.top + (1 - (value - yMin) / (yMax - yMin)) * plotH;
   const xTicks = epochs.filter((e) => e === first || e === last || e % Math.max(1, Math.ceil(epochs.length / 8)) === 0);
@@ -78,7 +79,7 @@ export function LineChart({
           width={width}
           height={height}
           role="img"
-          aria-label={`${title}. ${series.map((s) => `${s.label} ends at ${format(s.values[s.values.length - 1])}`).join(". ")}. Best epoch ${bestEpoch}.`}
+          aria-label={`${title}. ${series.map((s) => `${s.label} ends at ${format(s.values[s.values.length - 1])}`).join(". ")}. Best epochs ${bestEpochs.join(", ")}.`}
           onPointerMove={(e) => pointer(e.clientX, e.currentTarget)}
           onPointerLeave={() => onHover(null)}
         >
@@ -102,10 +103,14 @@ export function LineChart({
               <text x={M.left + 6} y={y(reference.value) - 6} style={{ fill: "var(--text-2)" }}>{reference.label}</text>
             </g>
           ) : null}
-          <line x1={x(bestEpoch)} x2={x(bestEpoch)} y1={M.top} y2={M.top + plotH} stroke="var(--text)" strokeOpacity={0.5} />
-          <text x={x(bestEpoch) + 5} y={M.top + 10} style={{ fill: "var(--text)", fontWeight: 600 }}>
-            best epoch {bestEpoch}
-          </text>
+          {bestEpochs.map((best, i) => (
+            <g key={best}>
+              <line x1={x(best)} x2={x(best)} y1={M.top} y2={M.top + plotH} stroke="var(--text)" strokeOpacity={0.5} />
+              <text x={x(best) + 5} y={M.top + 10 + i * 14} style={{ fill: "var(--text)", fontWeight: 600 }}>
+                best epoch {best}
+              </text>
+            </g>
+          ))}
           {series.map((s) => (
             <path
               key={s.key}
@@ -145,7 +150,7 @@ export function LineChart({
             left: Math.min(x(epochs[index]) + 12, width - 190),
           }}
         >
-          <span className="t-title">Epoch {epochs[index]}{epochs[index] === bestEpoch ? " · best" : ""}</span>
+          <span className="t-title">Epoch {epochs[index]}{bestEpochs.includes(epochs[index]) ? " · best" : ""}</span>
           {series.map((s) => (
             <span key={s.key} className="t-row">
               <span><i style={{ width: 10, height: 2, background: s.color, display: "inline-block" }} />{s.label}</span>

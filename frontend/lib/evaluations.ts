@@ -49,6 +49,29 @@ export function runsFor(
     );
 }
 
+// Comparison key: two runs compare only under identical kind + dataset/split.
+// Cross-checkpoint pairs (E01 vs E02) share this key; kind or dataset drift does not.
+export function comparisonKey(run: RunSummary): string {
+  const p = run.provenance;
+  return `${run.kind}::${p.dataset_version}::${p.split_version}::${p.split}`;
+}
+
+// Runs of one kind that share a comparison key with at least one other run.
+export function comparableRuns(runs: readonly RunSummary[], kind: RunKind): RunSummary[] {
+  const counts = new Map<string, number>();
+  for (const run of runs) {
+    if (run.kind !== kind) continue;
+    const key = comparisonKey(run);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return runs
+    .filter((run) => run.kind === kind && (counts.get(comparisonKey(run)) ?? 0) > 1)
+    .sort(
+      (a, b) =>
+        a.experiment_id.localeCompare(b.experiment_id) || a.created_at.localeCompare(b.created_at),
+    );
+}
+
 // Each row becomes "of the actual class, where did detections go".
 export function rowNormalize(values: readonly (readonly number[])[]): number[][] {
   return values.map((row) => {

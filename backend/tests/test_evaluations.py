@@ -1,6 +1,7 @@
 """Evaluation Run API over the committed run files; no model checkpoint is needed."""
 
 import json
+import math
 import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -328,6 +329,146 @@ def test_store_from_before_evaluation_api_upgrades_reserved_table(tmp_path: Path
         assert len(client.get("/api/evaluations").json()["runs"]) == 6
     with open_client(config) as client:
         assert len(client.get("/api/evaluations").json()["runs"]) == 6
+
+
+def test_compare_matched_isolated_pair_reads_both_runs_side_by_side(
+    tmp_path: Path,
+) -> None:
+    """P1-02: comparison loads only from two stored run IDs (E01 vs E02)."""
+    with open_client(settings(tmp_path)) as client:
+        client.post("/api/evaluations/import")
+        response = client.get(
+            "/api/evaluations/compare",
+            params={
+                "run_a": "e01-isolated-test-519de98bae5d",
+                "run_b": "e02-isolated-test-e47e49f57e81",
+            },
+        )
+        assert response.status_code == 200
+        body = response.json()
+        assert body["code"] == "comparison_available"
+        assert body["kind"] == "isolated"
+        assert body["dataset_version"] == "speech-commands-v0.02-p0-subset-v1"
+        assert body["split_version"] == "speaker-sha256-80-10-10-noise-source-round-robin-v1"
+        assert body["split"] == "test"
+        assert [run["id"] for run in body["runs"]] == [
+            "e01-isolated-test-519de98bae5d",
+            "e02-isolated-test-e47e49f57e81",
+        ]
+        for run in body["runs"]:
+            assert run["kind"] == "isolated"
+            metrics = run["metrics"]
+            # Every reported number recomputes from the run's own counts.
+            values = metrics["confusion_matrix"]["values"]
+            correct = sum(values[i][i] for i in range(len(values)))
+            assert math.isclose(metrics["accuracy"], correct / metrics["examples"])
+            mean_f1 = sum(c["f1"] for c in metrics["per_class"]) / len(metrics["per_class"])
+            assert math.isclose(metrics["macro_f1"], mean_f1)
+            assert run["training"]["curves"]
+            # Isolated and continuous numbers never share a view.
+            assert "false_alarms" not in metrics
+            assert "per_keyword" not in metrics
+        e01, e02 = body["runs"]
+        assert e01["metrics"]["macro_f1"] != e02["metrics"]["macro_f1"]
+        assert (
+            e01["provenance"]["checkpoint_sha256"] != e02["provenance"]["checkpoint_sha256"]
+        )
+
+
+def test_compare_matched_continuous_pair_keeps_event_numbers_separate(
+    tmp_path: Path,
+) -> None:
+    """P1-02: a passing continuous pair carries event numbers only, never accuracy."""
+    root = tmp_path / "evaluations"
+    write(root, "a/original.json", committed("e02-continuous-test.json"))
+    rerun = committed("e02-continuous-test.json")
+    rerun["run_id"] = "e02-continuous-test-rerun"
+    write(root, "a/rerun.json", rerun)
+    with open_client(settings(tmp_path, root)) as client:
+        assert client.post("/api/evaluations/import").json()["imported"] == [
+            "e02-continuous-test-e47e49f57e81",
+            "e02-continuous-test-rerun",
+        ]
+        response = client.get(
+            "/api/evaluations/compare",
+            params={
+                "run_a": "e02-continuous-test-e47e49f57e81",
+                "run_b": "e02-continuous-test-rerun",
+            },
+        )
+        assert response.status_code == 200
+        body = response.json()
+        assert body["kind"] == "continuous"
+        for run in body["runs"]:
+            metrics = run["metrics"]
+            found = metrics["true_positive"] + metrics["false_positive"]
+            expected = metrics["true_positive"] + metrics["false_negative"]
+            precision = metrics["true_positive"] / found if found else 0.0
+            recall = metrics["true_positive"] / expected if expected else 0.0
+            f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
+            assert math.isclose(metrics["precision"], precision)
+            assert math.isclose(metrics["recall"], recall)
+            assert math.isclose(metrics["f1"], f1)
+            assert metrics["false_alarms"]["count"] > 0
+            assert metrics["per_keyword"]
+            assert "accuracy" not in keys(run)
+
+
+def test_compare_rejects_mismatched_kind_and_split(tmp_path: Path) -> None:
+    """P1-02: mismatched kind or dataset/split version is rejected actionably."""
+    with open_client(settings(tmp_path)) as client:
+        client.post("/api/evaluations/import")
+        kind = client.get(
+            "/api/evaluations/compare",
+            params={
+                "run_a": "e02-isolated-test-e47e49f57e81",
+                "run_b": "e02-continuous-test-e47e49f57e81",
+            },
+        )
+        assert kind.status_code == 400
+        assert kind.json()["error"]["code"] == "comparison_kind_mismatch"
+        assert "never share a view" in kind.json()["error"]["message"]
+
+        split = client.get(
+            "/api/evaluations/compare",
+            params={
+                "run_a": "e01-isolated-test-519de98bae5d",
+                "run_b": "e01-isolated-validation-519de98bae5d",
+            },
+        )
+        assert split.status_code == 400
+        assert split.json()["error"]["code"] == "comparison_dataset_mismatch"
+        assert "identical dataset version" in split.json()["error"]["message"]
+
+        continuous_split = client.get(
+            "/api/evaluations/compare",
+            params={
+                "run_a": "e02-continuous-test-e47e49f57e81",
+                "run_b": "e02-continuous-validation-e47e49f57e81",
+            },
+        )
+        assert continuous_split.status_code == 400
+        assert continuous_split.json()["error"]["code"] == "comparison_dataset_mismatch"
+
+
+def test_compare_deleted_run_clears_with_no_fallback(tmp_path: Path) -> None:
+    """P1-02: deleting a compared run clears the comparison; nothing falls back."""
+    with open_client(settings(tmp_path)) as client:
+        client.post("/api/evaluations/import")
+        run = "e01-isolated-test-519de98bae5d"
+        assert client.delete(f"/api/evaluations/{run}").status_code == 204
+        response = client.get(
+            "/api/evaluations/compare",
+            params={
+                "run_a": run,
+                "run_b": "e02-isolated-test-e47e49f57e81",
+            },
+        )
+        assert response.status_code == 404
+        assert response.json()["error"]["code"] == "evaluation_not_found"
+        # The surviving run is still directly readable; nothing falls back.
+        survivor = client.get("/api/evaluations/e02-isolated-test-e47e49f57e81")
+        assert survivor.status_code == 200
 
 
 def test_legacy_predicted_columns_are_accepted_and_returned_as_detected(

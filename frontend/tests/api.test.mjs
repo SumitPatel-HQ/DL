@@ -27,6 +27,7 @@ test("every backend and live error code has recovery copy", () => {
   for (const code of [
     "invalid_wav", "unsupported_wav", "upload_too_large", "recording_too_long", "queue_full",
     "worker_unavailable", "offline", "analysis_in_progress", "delete_failed", "evaluation_not_found",
+    "comparison_kind_mismatch", "comparison_dataset_mismatch",
     "mic_denied", "mic_blocked", "no_device", "device_busy", "live_busy", "disconnected",
   ]) {
     assert.notEqual(describeError(code).title, "Unexpected error", code);

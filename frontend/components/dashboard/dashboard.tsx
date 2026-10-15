@@ -7,6 +7,7 @@ import { formatTimestamp, shortHash } from "../../lib/format.ts";
 import { ChartIcon, DatabaseIcon, TrashIcon, XIcon } from "../icons";
 import { useBackend } from "../shell/backend";
 import { Banner, EmptyState, ErrorBanner } from "../ui";
+import { ComparisonSection } from "./comparison";
 import { ContinuousView, IsolatedView, ProvenancePanel } from "./views";
 
 type Detail =
@@ -20,6 +21,7 @@ export function EvaluationDashboard({ initialTab, initialRun }: { initialTab: Ru
   const [listError, setListError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const [tab, setTab] = useState<RunKind>(initialTab);
+  const [mode, setMode] = useState<"single" | "compare">("single");
   const [checkpoint, setCheckpoint] = useState<string | null>(null);
   // undefined: follow the first run; null: nothing selected (after a deletion, never a fallback).
   const [runId, setRunId] = useState<string | null | undefined>(initialRun ?? undefined);
@@ -197,6 +199,32 @@ export function EvaluationDashboard({ initialTab, initialRun }: { initialTab: Ru
 
       <div className="controls">
         <div className="control">
+          <span className="label">View</span>
+          <div className="seg" role="group" aria-label="Single or comparison view">
+            <button type="button" aria-pressed={mode === "single"} onClick={() => setMode("single")}>
+              Single run
+            </button>
+            <button type="button" aria-pressed={mode === "compare"} onClick={() => setMode("compare")}>
+              Compare E01 vs E02
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {mode === "compare" ? (
+        <ComparisonSection
+          runs={runs ?? []}
+          kind={tab}
+          online={online}
+          onImport={importRuns}
+          busy={busy}
+        />
+      ) : null}
+
+      {mode === "single" ? (
+      <>
+      <div className="controls">
+        <div className="control">
           <span className="label">Model checkpoint</span>
           <div className="seg" role="group" aria-label="Model checkpoint">
             {options.length === 0 ? (
@@ -282,6 +310,8 @@ export function EvaluationDashboard({ initialTab, initialRun }: { initialTab: Ru
           <div className="skeleton" style={{ height: 120 }} />
           <div className="skeleton" style={{ height: 320 }} />
         </div>
+      ) : null}
+      </>
       ) : null}
 
       <dialog ref={dialogRef} className="modal" aria-labelledby="delete-run-title">

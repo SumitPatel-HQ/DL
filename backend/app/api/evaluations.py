@@ -27,6 +27,11 @@ def import_committed(evaluations: Service) -> dict[str, Any]:
     return evaluations.import_committed()
 
 
+@router.get("/compare")
+def compare(run_a: str, run_b: str, evaluations: Service) -> dict[str, Any]:
+    return evaluations.compare(run_a, run_b)
+
+
 @router.get("/{run_id}")
 def run(run_id: str, evaluations: Service) -> dict[str, Any]:
     return evaluations.get(run_id)

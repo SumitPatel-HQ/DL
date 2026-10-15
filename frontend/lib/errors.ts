@@ -152,6 +152,16 @@ const COPY: Record<string, ErrorCopy> = {
     detail: "This Evaluation Run no longer exists. Its views were cleared; nothing falls back.",
     recovery: "none",
   },
+  comparison_kind_mismatch: {
+    title: "Runs cannot be compared",
+    detail: "Isolated classification and continuous-event numbers never share a view. Pick two isolated or two continuous runs.",
+    recovery: "none",
+  },
+  comparison_dataset_mismatch: {
+    title: "Runs use different datasets",
+    detail: "Comparison needs identical dataset version, split version, and split. Pick two runs from the same Evaluation dataset.",
+    recovery: "none",
+  },
   mic_denied: {
     title: "Microphone permission denied",
     detail: "The browser did not get mic access. Press Start again and choose Allow.",
