@@ -6,9 +6,10 @@ from contextlib import contextmanager
 from pathlib import Path
 from threading import RLock
 
-# live_events carries no API yet: the live WebSocket/action implementation
-# belongs to ticket 06. Evaluation Runs are imported from committed run files
-# and keep the whole validated document; the provenance columns make every row
+# live_events holds live decision metadata only (label, score, decision,
+# action, action result); raw mic audio is never stored. Evaluation Runs are
+# imported from committed run files and keep the whole validated document; the
+# provenance columns make every row
 # traceable to checkpoint, dataset/split version, config, and timestamp without
 # parsing JSON. Runs may describe checkpoints that are not installed (E01), so
 # they reference checkpoints by hash rather than by a models row.

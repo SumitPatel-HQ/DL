@@ -10,10 +10,12 @@ from starlette.responses import JSONResponse
 
 from app.api.evaluations import router as evaluations_router
 from app.api.health import router as health_router
+from app.api.live import router as live_router
 from app.api.recordings import router as recordings_router
 from app.errors import ServiceError
 from app.middleware import LocalRequestsMiddleware
 from app.services.evaluations import EvaluationService
+from app.services.live import LiveService
 from app.services.recordings import RecordingService
 from app.settings import Settings
 
@@ -26,6 +28,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         jobs = RecordingService(config)
         application.state.recordings = jobs
         application.state.evaluations = EvaluationService(jobs.store, config.evaluations)
+        application.state.live = LiveService(jobs)
         try:
             yield
         finally:
@@ -73,6 +76,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(health_router)
     application.include_router(recordings_router)
     application.include_router(evaluations_router)
+    application.include_router(live_router)
     return application
 
 

@@ -13,8 +13,12 @@ Ticket 4 adds the experimental sliding-window detector and the continuous-event
 gate. See [continuous results](docs/evaluations/continuous-v1/README.md): on held-out
 natural AMI speech, event-F1 is 0.007 with 1,559 false alarms/hour. The gate
 decision is no-go for continuous spotting as a working feature
-([ADR-0006](docs/adr/0006-sliding-window-gate-no-go.md)). Audio analysis,
-microphone sessions and persistence are not implemented yet.
+([ADR-0006](docs/adr/0006-sliding-window-gate-no-go.md)). Ticket 5 adds recording
+jobs and persistence. Ticket 6 adds the web app: Audio Analysis (`/analyze`) with a
+linked waveform, Detection table and playback; Voice Control (`/live`) with an
+explicit mic session over a loopback WebSocket; and the Evaluation dashboard
+(`/dashboard`) built only from stored Evaluation Runs. See the
+[API contract](docs/backend-api.md).
 
 ## Setup on Windows
 
@@ -54,7 +58,9 @@ default to port 3000. Use these IPv4 addresses, not `localhost` or `[::1]`.
 The backend also filters HTTP Host headers to `127.0.0.1`. That filter is separate
 from socket binding; its TestClient test does not prove the listening address.
 Stop each with Ctrl+C. If port 3000 is occupied, Next.js reports its alternate port.
-The web server fetches API health directly; no browser CORS configuration is needed.
+The overview page fetches API health on the server. The three app slices call the
+API from the browser; the API allows only the `127.0.0.1:3000` and `localhost:3000`
+origins.
 Optional server-side configuration is documented in `frontend/.env.example`.
 
 ## Health and model setup

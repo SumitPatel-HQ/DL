@@ -11,6 +11,7 @@ dependencies = [
     "numpy>=2,<3",
     "psutil>=7,<8",
     "scipy>=1.15,<2",
+    "websockets>=15,<17",
 ]
 
 [dependency-groups]

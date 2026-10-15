@@ -151,12 +151,62 @@ The ten-minute ceiling is a validation limit, not a target-hardware performance 
 SQLite enables foreign keys and stores model identities, Recordings, Detections,
 Evaluation Runs, and live-event metadata. `PRAGMA user_version` tracks the schema;
 version 1 replaces the earlier reserved, never-written `evaluation_runs` shape.
-The `live_events` table is reserved schema only: the command map
-(`GET /api/commands`) and the live WebSocket/action implementation are deferred
-to ticket 06d. No raw mic audio is stored.
+The `live_events` table stores live decision metadata only (see below). No raw mic
+audio is stored.
+
+## Live voice session
+
+| Method | Route | Response |
+| --- | --- | --- |
+| GET | `/api/commands` | Keyword-to-action allowlist, rejected labels, live policy, protocol limits |
+| WebSocket | `/api/live` | One explicit mic session; versioned JSON control plus binary PCM frames |
+
+The command map is a strict allowlist of in-app demo actions
+([ADR-0004](adr/0004-in-app-actions-only.md)): `right` `next_slide`, `left`
+`previous_slide`, `go` `play`, `stop` `pause`, `up` `volume_up`, `down`
+`volume_down`. Unknown and Silence never map to an action. Nothing reaches the OS.
+
+The browser opens the socket only after the user presses Start
+([ADR-0003](adr/0003-local-websocket-mic.md)). Origins follow the HTTP allowlist;
+other browser origins are refused before the handshake. Within 5 seconds the client
+sends `{"type":"start","version":1,"sample_rate":48000,"channels":1,"encoding":"pcm_s16le"}`.
+The server replies `ready` with a session ID, Keywords, commands, and policy, or an
+`error` message followed by close: `invalid_message` and `unsupported_version` (1008),
+`unsupported_audio` (1003, mono PCM_s16le at 8-96 kHz only), the model-unavailable
+codes from health (1011), or `live_busy` (1013; one session at a time).
+
+After `ready` the client streams binary mono PCM_s16le frames of at most 32 KiB at
+its native rate. The server keeps about one window of mic audio in memory, resamples
+each 1 s window to 16 kHz through the shared feature pipeline, and scores a window
+every 0.25 s. Each window yields a `frame` message (`t_s`, top `label`, `score`).
+Decisions follow the initial live policy, which is not yet tuned on validation data:
+consecutive windows with the same top label form one utterance; a Keyword is
+`accepted` when 2 windows in a row reach Confidence 0.7 and 1.2 s have passed since
+the last accepted action; otherwise it is rejected as `cooldown` or, when the run
+ends, `low_confidence`. Unknown and Silence runs are rejected once each as `unknown`
+or `silence`. One utterance causes at most one action. A `decision` message carries
+`id`, `t_s`, `label`, `score`, `accepted`, `reason`, `action` (only when accepted),
+and `processing_ms` from the last received frame to the decision.
+
+When unscored audio exceeds 1 s, the server drops the stale audio instead of
+queueing it, ends the current utterance without a decision (cooldown is kept), and
+sends `backpressure` with `dropped_s`. A malformed or oversized frame closes the
+session with `invalid_frame` (1009). The client reports each in-app result with
+`{"type":"action_result","decision_id":N,"status":"applied"|"no_change"}`.
+`{"type":"stop"}` returns `stopped` and closes with 1000. Stop, close, or disconnect
+ends the session immediately and frees its in-memory audio.
+
+Each decision is stored in `live_events` as session ID, label, Confidence, accepted
+flag, action, and action status (`dispatched`, then the reported result). Raw mic
+audio is never written. Uvicorn needs the `websockets` package for this route; it is
+a locked backend dependency.
 
 ## Validation
 
+`backend/tests/test_live.py` covers the decision policy (smoothing, cooldown,
+one action per utterance, Unknown/Silence rejection), stale-audio dropping, and the
+WebSocket contract with a biased fixture checkpoint, including the stored metadata
+and the absence of stored audio.
 `backend/tests/test_recordings.py` exercises the API with a generated PCM fixture
 and a real, deliberately biased test checkpoint. These are plumbing fixtures,
 not evidence of speech accuracy. It covers persistence across restart, ranged

@@ -6,25 +6,28 @@ export async function ModelStatus() {
     health = await getHealth();
   } catch {
     return (
-      <section aria-labelledby="status-heading" role="status">
-        <h2 id="status-heading">Backend disconnected</h2>
-        <p>Start the API with <code>npm run api</code>, check API_BASE_URL, then refresh this page.</p>
+      <section className="banner error" aria-labelledby="status-heading" role="status">
+        <div className="banner-body">
+          <strong id="status-heading">Backend disconnected</strong>
+          <span>Start the API with <code>npm run api</code>, check API_BASE_URL, then refresh this page.</span>
+        </div>
       </section>
     );
   }
 
-  return (
-    <section aria-labelledby="status-heading" role="status">
-      <p className="eyebrow">API connected</p>
-      {health.model.status === "ready" ? (
-        <h2 id="status-heading">Model ready</h2>
-      ) : (
-        <>
-          <h2 id="status-heading">Model unavailable</h2>
-          <p>{health.model.setup_action}</p>
-          <p>No trained keywords are available.</p>
-        </>
-      )}
+  return health.model.status === "ready" ? (
+    <section className="banner info" aria-labelledby="status-heading" role="status">
+      <div className="banner-body">
+        <strong id="status-heading">API connected · model ready</strong>
+        <span>All three slices can use the active checkpoint.</span>
+      </div>
+    </section>
+  ) : (
+    <section className="banner experimental" aria-labelledby="status-heading" role="status">
+      <div className="banner-body">
+        <strong id="status-heading">API connected · model unavailable</strong>
+        <span>{health.model.setup_action} No trained keywords are available.</span>
+      </div>
     </section>
   );
 }
