@@ -1,0 +1,26 @@
+{
+  "config_version": "baseline-v1",
+  "seed": 42,
+  "device": "cpu",
+  "labels": ["left", "right", "up", "down", "go", "stop", "unknown", "silence"],
+  "features": {
+    "version": "mfcc-v1-draft",
+    "sample_rate": 16000,
+    "channels": 1,
+    "dtype": "float32",
+    "frame_ms": 25,
+    "hop_ms": 10,
+    "n_mfcc": 40,
+    "normalization": "train-only statistics; implementation frozen in ticket 2"
+  },
+  "network": { "type": "lstm", "hidden_size": 64, "num_layers": 1 },
+  "training": { "batch_size": 16, "optimizer": "adam", "loss": "cross_entropy" },
+  "spotting": {
+    "window_s": 1.0,
+    "stride_s": 0.25,
+    "threshold": null,
+    "consecutive_windows": null,
+    "cooldown_s": 1.2,
+    "status": "Uncalibrated. Tune on validation only; freeze before test."
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "captured_at": "2026-10-15T09:56:51.477221+00:00",
+  "os": "Windows-11-10.0.26300-SP0",
+  "cpu": "AMD64 Family 23 Model 104 Stepping 1, AuthenticAMD",
+  "logical_cpu_count": 12,
+  "ram_total_bytes": 16456015872,
+  "ram_available_bytes": 4244295680,
+  "python": "3.13.7",
+  "node": "v24.13.1",
+  "packages": {
+    "fastapi": "0.143.1",
+    "uvicorn": "0.54.0",
+    "torch": "2.14.1+cpu",
+    "numpy": "2.5.4",
+    "pytest": "9.1.1",
+    "ruff": "0.17.0",
+    "mypy": "1.20.2",
+    "psutil": "7.2.2"
+  },
+  "torch_cuda_build": null,
+  "torch_cuda_available": false,
+  "note": "Environment snapshot only; no training or inference benchmark has been run."
+}
