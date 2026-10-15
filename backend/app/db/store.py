@@ -6,6 +6,11 @@ from contextlib import contextmanager
 from pathlib import Path
 from threading import RLock
 
+# evaluation_runs and live_events carry no API yet: their import/read routes
+# (/api/evaluations) and the live WebSocket/action implementation belong to
+# ticket 06. The tables exist here so the ticket-05 persistence seam (models,
+# recordings, detections, evaluation runs, live events per KWS_SPEC) has a
+# stable schema for ticket 06 to build on, without silent schema-only drift.
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS models (
     id TEXT PRIMARY KEY, version TEXT NOT NULL, checkpoint_path TEXT NOT NULL,
@@ -41,6 +46,16 @@ CREATE TABLE IF NOT EXISTS live_events (
 CREATE INDEX IF NOT EXISTS detections_recording ON detections(recording_id);
 """
 
+# Recordings being analyzed by the bounded worker. RecordingService holds
+# Store.lock only for these short metadata transitions, never across audio
+# reads or model inference, so concurrent metadata GETs stay responsive.
+ACTIVE_STATUSES = ("queued", "running")
+
+
+def is_active_status(status: str) -> bool:
+    """Whether a Recording status means the worker owns the job."""
+    return status in ACTIVE_STATUSES
+
 
 class Store:
     def __init__(self, path: Path) -> None:
@@ -53,7 +68,8 @@ class Store:
         with self.transaction() as db:
             db.execute(
                 "UPDATE recordings SET status='failed', error_code='service_interrupted' "
-                "WHERE status IN ('queued','running')"
+                "WHERE status IN (?,?)",
+                ACTIVE_STATUSES,
             )
 
     @contextmanager

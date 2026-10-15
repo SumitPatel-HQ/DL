@@ -2,18 +2,19 @@
 
 import json
 import sqlite3
+import time
 import wave
 from collections import deque
 from dataclasses import asdict
 from pathlib import Path
 from threading import Condition, Event, Thread
-from typing import Any
+from typing import Any, NamedTuple
 from uuid import UUID
 
 import numpy as np
 
 from app.constants import MODEL_SETUP_ACTION
-from app.db.store import Store
+from app.db.store import ACTIVE_STATUSES, Store, is_active_status
 from app.errors import ServiceError
 from app.settings import Settings
 from ml.checkpoint import LoadedModel, load_checkpoint
@@ -25,7 +26,13 @@ EVIDENCE = "docs/evaluations/continuous-v1/e02-continuous-test.json"
 LIMITATION = "Experimental sliding-window Detection; natural-speech feasibility target was not met."
 
 
-def inspect_wav(path: Path, max_duration_s: float) -> tuple[float, int, int]:
+class WavInfo(NamedTuple):
+    duration_s: float
+    sample_rate: int
+    channels: int
+
+
+def inspect_wav(path: Path, max_duration_s: float) -> WavInfo:
     try:
         with wave.open(str(path), "rb") as wav:
             frames, rate, channels = wav.getnframes(), wav.getframerate(), wav.getnchannels()
@@ -43,7 +50,7 @@ def inspect_wav(path: Path, max_duration_s: float) -> tuple[float, int, int]:
                 actual += len(chunk)
             if actual != expected:
                 raise ServiceError("invalid_wav", "WAV sample data is truncated.")
-            return frames / rate, rate, channels
+            return WavInfo(frames / rate, rate, channels)
     except (wave.Error, EOFError) as exc:
         raise ServiceError("invalid_wav", "Upload a valid uncompressed integer PCM WAV.") from exc
 
@@ -161,27 +168,29 @@ class RecordingService:
         return result
 
     def add(self, recording: str, filename: str, path: Path) -> dict[str, Any]:
-        duration, rate, channels = inspect_wav(path, self.settings.max_duration_s)
+        info = inspect_wav(path, self.settings.max_duration_s)
         with self.store.transaction() as db:
             db.execute(
                 "INSERT INTO recordings "
                 "(id,filename,duration_s,sample_rate,channels,audio_path,status) "
                 "VALUES (?,?,?,?,?,?,'uploaded')",
-                (recording, filename, duration, rate, channels, path.name),
+                (recording, filename, info.duration_s, info.sample_rate, info.channels, path.name),
             )
         return self.get(recording)
 
     def analyze(self, recording: str, keywords: list[str]) -> dict[str, Any]:
         with self.condition:
             current = self.get(recording)
-            self.active_model()
+            # Keyword validation precedes the model checkpoint check so a bad
+            # Keyword is reported as 422 even when no checkpoint is installed.
             if (
                 not keywords
                 or len(set(keywords)) != len(keywords)
                 or not set(keywords) <= set(KEYWORDS)
             ):
                 raise ServiceError("unsupported_keyword", "Select unique trained Keywords.", 422)
-            if current["status"] in ("running", "queued"):
+            self.active_model()
+            if is_active_status(current["status"]):
                 raise ServiceError(
                     "analysis_in_progress", "This Recording is already being analyzed.", 409
                 )
@@ -253,7 +262,7 @@ class RecordingService:
                         return
                     raise
                 if path.is_file():
-                    path.replace(staged)
+                    self._stage(path, staged)
                 try:
                     with self.store.transaction() as db:
                         db.execute("DELETE FROM recordings WHERE id=?", (recording,))
@@ -268,6 +277,22 @@ class RecordingService:
                 raise ServiceError(
                     "delete_failed", "Audio could not be removed; retry deletion.", 409
                 ) from exc
+
+    @staticmethod
+    def _stage(path: Path, staged: Path) -> None:
+        # Inference reads audio without holding Store.lock, so a concurrent
+        # worker read can briefly hold the file open. Windows denies renaming
+        # open files, so retry the staging rename briefly; other platforms are
+        # unaffected. Persistent faults still surface as delete_failed.
+        deadline = time.monotonic() + 2
+        while True:
+            try:
+                path.replace(staged)
+                return
+            except PermissionError:
+                if time.monotonic() >= deadline:
+                    raise
+                time.sleep(0.02)
 
     def _work(self) -> None:
         failed: str | None = None
@@ -311,9 +336,13 @@ class RecordingService:
 
     def _infer(self, recording: str) -> None:
         assert self.loaded is not None and self.config is not None
-        with self.store.lock:
-            current = self.get(recording)
-            audio = read_wav(self.audio_path(recording))
+        # Short metadata read under the lock; audio decoding and scoring run
+        # without holding Store.lock so concurrent metadata GETs never block
+        # on inference I/O. Only the queued->running transition above, the
+        # per-batch liveness checks below, and the final completed write hold
+        # the lock.
+        current = self.get(recording)
+        audio = read_wav(self.audio_dir / f"{recording}.wav")
         starts = window_starts(len(audio), self.config.stride_s)
         chunks = []
         for first in range(0, len(starts), 32):
@@ -373,7 +402,8 @@ class RecordingService:
             with self.store.transaction() as db:
                 db.execute(
                     "UPDATE recordings SET status='failed',error_code='service_interrupted' "
-                    "WHERE status IN ('running','queued')"
+                    "WHERE status IN (?,?)",
+                    ACTIVE_STATUSES,
                 )
         except sqlite3.Error:
             # Startup recovers persisted queued/running states when storage is writable again.

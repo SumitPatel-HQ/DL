@@ -23,3 +23,9 @@ authentic 0-1 s Detections for left, right, and down; up, go, and stop returned 
 Detections. Every job completed and every Recording was deleted through the API.
 This was an API smoke check, not a new Evaluation Run or a quality claim.
 The ADR-0006 experimental limitation remains explicit in model and Detection responses.
+
+Deferred to ticket 06 (Analysis, live, and dashboard UI): Evaluation Runs
+import/read APIs (`GET /api/evaluations`, `GET /api/evaluations/{id}`), the
+command map (`GET /api/commands`), and live events WebSocket/actions. The
+`evaluation_runs` and `live_events` tables are reserved schema only, with no
+API behavior in this ticket.

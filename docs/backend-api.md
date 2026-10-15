@@ -94,13 +94,17 @@ duration/byte/queue limits can be set through `Settings` when embedding the app.
 The ten-minute ceiling is a validation limit, not a target-hardware performance claim.
 
 SQLite enables foreign keys and stores model identities, Recordings, Detections,
-Evaluation Runs, and live-event metadata. Evaluation import/read APIs and the live
-WebSocket/action implementation belong to later tickets. No raw mic audio is stored.
+Evaluation Runs, and live-event metadata. The `evaluation_runs` and `live_events`
+tables are reserved schema only: the Evaluation import/read APIs
+(`GET /api/evaluations`, `GET /api/evaluations/{id}`), the command map
+(`GET /api/commands`), and the live WebSocket/action implementation are explicitly
+deferred to ticket 06 (Analysis, live, and dashboard UI). No raw mic audio is stored.
 
 ## Validation
 
 `backend/tests/test_recordings.py` exercises the API with a generated PCM fixture
 and a real, deliberately biased test checkpoint. These are plumbing fixtures,
 not evidence of speech accuracy. It covers persistence across restart, ranged
-playback, deletion, validation errors, queue saturation, shutdown, source loss,
+playback (including suffix ranges and unsatisfiable-range 416 responses),
+deletion, validation errors, queue saturation, shutdown, source loss,
 worker recovery, and upload disconnects. `npm run check` runs the repository checks.

@@ -4,8 +4,11 @@ import asyncio
 import io
 import json
 import sqlite3
+import threading
 import time
 import wave
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
@@ -81,9 +84,15 @@ def completed(client: TestClient, recording: str) -> dict:
     raise AssertionError("Analysis did not finish")
 
 
+@contextmanager
+def open_client(settings: Settings) -> Iterator[TestClient]:
+    with TestClient(create_app(settings), base_url="http://127.0.0.1") as client:
+        yield client
+
+
 def test_upload_analyze_playback_persist_and_delete(tmp_path: Path) -> None:
     settings = configured(tmp_path)
-    with TestClient(create_app(settings), base_url="http://127.0.0.1") as client:
+    with open_client(settings) as client:
         assert client.get("/api/health").json()["model"]["status"] == "ready"
         active = client.get("/api/models/active").json()
         assert active["keywords"] == ["left", "right", "up", "down", "go", "stop"]
@@ -107,12 +116,26 @@ def test_upload_analyze_playback_persist_and_delete(tmp_path: Path) -> None:
         playback = client.get(f"/api/recordings/{recording}/audio", headers={"Range": "bytes=0-43"})
         assert playback.status_code == 206
         assert playback.content == audio[:44]
-    with TestClient(create_app(settings), base_url="http://127.0.0.1") as client:
+    with open_client(settings) as client:
         assert len(client.get(f"/api/recordings/{recording}/detections").json()["detections"]) == 1
         assert client.delete(f"/api/recordings/{recording}").status_code == 204
         for suffix in ("", "/detections", "/audio"):
             assert client.get(f"/api/recordings/{recording}{suffix}").status_code == 404
         assert list((settings.storage / "audio").iterdir()) == []
+
+
+def test_audio_suffix_and_unsatisfiable_ranges(tmp_path: Path) -> None:
+    with open_client(configured(tmp_path)) as client:
+        audio = wav_bytes()
+        recording = client.post("/api/recordings", files={"file": ("go.wav", audio)}).json()["id"]
+        suffix = client.get(f"/api/recordings/{recording}/audio", headers={"Range": "bytes=-44"})
+        assert suffix.status_code == 206
+        assert suffix.content == audio[-44:]
+        unsatisfiable = client.get(
+            f"/api/recordings/{recording}/audio", headers={"Range": f"bytes={len(audio)}-"}
+        )
+        assert unsatisfiable.status_code == 416
+        assert unsatisfiable.headers["content-range"] == f"bytes */{len(audio)}"
 
 
 @pytest.mark.parametrize(
@@ -134,7 +157,7 @@ def test_invalid_uploads_leave_no_recordings_or_bytes(
     status: int,
 ) -> None:
     settings = configured(tmp_path, max_duration_s=2)
-    with TestClient(create_app(settings), base_url="http://127.0.0.1") as client:
+    with open_client(settings) as client:
         result = client.post("/api/recordings", files={"file": (filename, body)})
         assert result.status_code == status
         assert result.json()["error"]["code"] == code
@@ -143,9 +166,7 @@ def test_invalid_uploads_leave_no_recordings_or_bytes(
 
 
 def test_no_detections_and_keyword_and_command_rejection(tmp_path: Path) -> None:
-    with TestClient(
-        create_app(configured(tmp_path, label=7)), base_url="http://127.0.0.1"
-    ) as client:
+    with open_client(configured(tmp_path, label=7)) as client:
         recording = client.post(
             "/api/recordings", files={"file": ("silence.wav", wav_bytes())}
         ).json()["id"]
@@ -166,7 +187,7 @@ def test_no_detections_and_keyword_and_command_rejection(tmp_path: Path) -> None
 
 def test_missing_checkpoint_is_distinct_from_running_service(tmp_path: Path) -> None:
     settings = Settings(storage=tmp_path / "store", checkpoint=tmp_path / "missing.pt")
-    with TestClient(create_app(settings), base_url="http://127.0.0.1") as client:
+    with open_client(settings) as client:
         assert client.get("/api/health").json()["status"] == "ok"
         assert client.get("/api/models/active").status_code == 503
         recording = client.post("/api/recordings", files={"file": ("go.wav", wav_bytes())}).json()[
@@ -178,9 +199,21 @@ def test_missing_checkpoint_is_distinct_from_running_service(tmp_path: Path) -> 
         assert client.get(f"/api/recordings/{recording}").json()["status"] == "uploaded"
 
 
+def test_unsupported_keyword_takes_precedence_over_missing_checkpoint(tmp_path: Path) -> None:
+    settings = Settings(storage=tmp_path / "store", checkpoint=tmp_path / "missing.pt")
+    with open_client(settings) as client:
+        recording = client.post("/api/recordings", files={"file": ("go.wav", wav_bytes())}).json()[
+            "id"
+        ]
+        result = client.post(f"/api/recordings/{recording}/analyze", json={"keywords": ["play"]})
+        assert result.status_code == 422
+        assert result.json()["error"]["code"] == "unsupported_keyword"
+        assert client.get(f"/api/recordings/{recording}").json()["status"] == "uploaded"
+
+
 def test_byte_limits_origin_and_extra_upload_fields(tmp_path: Path) -> None:
     settings = configured(tmp_path, max_upload_bytes=128)
-    with TestClient(create_app(settings), base_url="http://127.0.0.1") as client:
+    with open_client(settings) as client:
         result = client.post("/api/recordings", files={"file": ("big.wav", wav_bytes())})
         assert result.status_code == 413
         assert result.json()["error"]["code"] == "upload_too_large"
@@ -201,7 +234,7 @@ def test_byte_limits_origin_and_extra_upload_fields(tmp_path: Path) -> None:
 
 def test_chunked_oversize_upload_is_rejected_and_cleaned(tmp_path: Path) -> None:
     settings = configured(tmp_path, max_upload_bytes=128)
-    with TestClient(create_app(settings), base_url="http://127.0.0.1") as client:
+    with open_client(settings) as client:
 
         def chunks():
             yield (
@@ -224,7 +257,7 @@ def test_chunked_oversize_upload_is_rejected_and_cleaned(tmp_path: Path) -> None
 
 def test_worker_failure_does_not_block_next_recording(tmp_path: Path) -> None:
     settings = configured(tmp_path)
-    with TestClient(create_app(settings), base_url="http://127.0.0.1") as client:
+    with open_client(settings) as client:
         broken = client.post("/api/recordings", files={"file": ("go.wav", wav_bytes())}).json()[
             "id"
         ]
@@ -241,7 +274,7 @@ def test_worker_failure_does_not_block_next_recording(tmp_path: Path) -> None:
 
 def test_one_worker_queue_limit_shutdown_and_restart(tmp_path: Path) -> None:
     settings = configured(tmp_path, queue_capacity=1)
-    with TestClient(create_app(settings), base_url="http://127.0.0.1") as client:
+    with open_client(settings) as client:
         ids = [
             client.post("/api/recordings", files={"file": ("go.wav", wav_bytes(600))}).json()["id"]
             for _ in range(3)
@@ -267,7 +300,7 @@ def test_one_worker_queue_limit_shutdown_and_restart(tmp_path: Path) -> None:
             client.post(f"/api/recordings/{ids[0]}/analyze", json={"keywords": ["go"]}).status_code
             == 409
         )
-    with TestClient(create_app(settings), base_url="http://127.0.0.1") as client:
+    with open_client(settings) as client:
         for key in ids[:2]:
             job = client.get(f"/api/recordings/{key}").json()
             assert job["status"] == "failed"
@@ -276,9 +309,38 @@ def test_one_worker_queue_limit_shutdown_and_restart(tmp_path: Path) -> None:
             assert client.delete(f"/api/recordings/{key}").status_code == 204
 
 
+def test_metadata_readable_during_inference(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import app.services.recordings as service_module
+
+    entered = threading.Event()
+    real_read_wav = service_module.read_wav
+
+    def slow_read_wav(path: Path) -> service_module.np.ndarray:
+        entered.set()
+        time.sleep(3)
+        return real_read_wav(path)
+
+    monkeypatch.setattr(service_module, "read_wav", slow_read_wav)
+    with open_client(configured(tmp_path)) as client:
+        recording = client.post("/api/recordings", files={"file": ("go.wav", wav_bytes())}).json()[
+            "id"
+        ]
+        result = client.post(f"/api/recordings/{recording}/analyze", json={"keywords": ["go"]})
+        assert result.status_code == 202
+        assert entered.wait(timeout=5)
+        started = time.monotonic()
+        job = client.get(f"/api/recordings/{recording}").json()
+        elapsed = time.monotonic() - started
+        assert job["status"] in ("queued", "running")
+        assert elapsed < 2
+        assert completed(client, recording)["status"] == "completed"
+
+
 def test_delete_running_recording_cannot_restore_results(tmp_path: Path) -> None:
     settings = configured(tmp_path)
-    with TestClient(create_app(settings), base_url="http://127.0.0.1") as client:
+    with open_client(settings) as client:
         recording = client.post(
             "/api/recordings", files={"file": ("go.wav", wav_bytes(600))}
         ).json()["id"]
@@ -347,7 +409,7 @@ def test_upload_disconnect_cleans_partial_data(tmp_path: Path) -> None:
 
 def test_mutation_rate_limit_does_not_block_health(tmp_path: Path) -> None:
     settings = configured(tmp_path, requests_per_minute=2)
-    with TestClient(create_app(settings), base_url="http://127.0.0.1") as client:
+    with open_client(settings) as client:
         for _ in range(2):
             assert (
                 client.post("/api/recordings", files={"file": ("go.wav", wav_bytes())}).status_code
@@ -362,14 +424,14 @@ def test_mutation_rate_limit_does_not_block_health(tmp_path: Path) -> None:
 def test_incompatible_model_and_detector_do_not_advertise_readiness(tmp_path: Path) -> None:
     settings = configured(tmp_path)
     settings.detector.write_text('{"format":"kws-detector-v1","checkpoint":{"sha256":"wrong"}}')
-    with TestClient(create_app(settings), base_url="http://127.0.0.1") as client:
+    with open_client(settings) as client:
         assert client.get("/api/health").json()["model"]["code"] == "model_incompatible"
         assert client.get("/api/models/active").status_code == 503
 
 
 def test_database_delete_failure_preserves_playable_audio(tmp_path: Path) -> None:
     settings = configured(tmp_path)
-    with TestClient(create_app(settings), base_url="http://127.0.0.1") as client:
+    with open_client(settings) as client:
         audio = wav_bytes()
         recording = client.post("/api/recordings", files={"file": ("go.wav", audio)}).json()["id"]
         # External SQLite fault: this deferred constraint fails at COMMIT, after DELETE runs.
@@ -394,7 +456,7 @@ def test_staged_delete_failure_can_be_retried(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     settings = configured(tmp_path)
-    with TestClient(create_app(settings), base_url="http://127.0.0.1") as client:
+    with open_client(settings) as client:
         recording = client.post("/api/recordings", files={"file": ("go.wav", wav_bytes())}).json()[
             "id"
         ]
@@ -416,14 +478,14 @@ def test_staged_delete_failure_can_be_retried(
 
 def test_restart_restores_uncommitted_staged_delete_and_removes_orphans(tmp_path: Path) -> None:
     settings = configured(tmp_path)
-    with TestClient(create_app(settings), base_url="http://127.0.0.1") as client:
+    with open_client(settings) as client:
         audio = wav_bytes()
         recording = client.post("/api/recordings", files={"file": ("go.wav", audio)}).json()["id"]
     path = settings.storage / "audio" / f"{recording}.wav"
     path.replace(path.with_suffix(".wav.deleting"))
     orphan = settings.storage / "audio" / "orphan.wav.deleting"
     orphan.write_bytes(b"uncommitted upload or committed delete")
-    with TestClient(create_app(settings), base_url="http://127.0.0.1") as client:
+    with open_client(settings) as client:
         assert client.get(f"/api/recordings/{recording}/audio").content == audio
         assert not orphan.exists()
         assert client.delete(f"/api/recordings/{recording}").status_code == 204
@@ -431,7 +493,7 @@ def test_restart_restores_uncommitted_staged_delete_and_removes_orphans(tmp_path
 
 def test_status_write_failure_is_visible_and_worker_processes_next_job(tmp_path: Path) -> None:
     settings = configured(tmp_path)
-    with TestClient(create_app(settings), base_url="http://127.0.0.1") as client:
+    with open_client(settings) as client:
         recording = client.post("/api/recordings", files={"file": ("go.wav", wav_bytes())}).json()[
             "id"
         ]
