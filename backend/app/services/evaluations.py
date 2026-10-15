@@ -63,6 +63,12 @@ class Dataset(Document):
     noise_sources: list[str] = Field(default_factory=list)
     snr_db: float | None = None
 
+    @model_validator(mode="after")
+    def noisy_runs_name_their_noise(self) -> "Dataset":
+        if self.condition == "noisy" and (not self.noise_sources or self.snr_db is None):
+            raise ValueError("A noisy run must name its noise sources and SNR")
+        return self
+
 
 class Target(Document):
     met: bool

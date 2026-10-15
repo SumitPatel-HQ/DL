@@ -74,6 +74,8 @@ def evaluate(
     trained_on = loaded.metadata["dataset"]
     dataset = {key: cached.metadata[key] for key in DATASET_KEYS}
     effective_condition = condition or "clean"
+    if dataset["normalization_sha256"] != trained_on["normalization_sha256"]:
+        raise ValueError("Cache was built with different normalization than the checkpoint")
     if not allow_dataset_mismatch and dataset != trained_on:
         raise ValueError("Cache does not match the checkpoint's manifest or normalization")
     probabilities = loaded.probabilities(cached.features)

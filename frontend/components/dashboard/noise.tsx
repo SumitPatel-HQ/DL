@@ -37,6 +37,7 @@ function ConditionTile({ run, children }: { run: RunDetail; children: ReactNode 
 function NoisePairView({ pair, online }: { pair: NoisePair; online: boolean }) {
   const [result, setResult] = useState<Comparison | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
   const cleanId = pair.clean.id;
   const noisyId = pair.noisy.id;
 
@@ -60,9 +61,9 @@ function NoisePairView({ pair, online }: { pair: NoisePair; online: boolean }) {
     return () => {
       cancelled = true;
     };
-  }, [cleanId, noisyId, online]);
+  }, [cleanId, noisyId, online, attempt]);
 
-  if (error) return <ErrorBanner code={error} handlers={{ retry: () => setError(null) }} />;
+  if (error) return <ErrorBanner code={error} handlers={{ retry: () => setAttempt((n) => n + 1) }} />;
   const visible = result?.runs[0].id === cleanId && result?.runs[1].id === noisyId ? result : null;
   if (visible === null) {
     return (

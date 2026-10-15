@@ -703,3 +703,17 @@ def test_legacy_predicted_columns_are_accepted_and_returned_as_detected(
             "true",
             "detected",
         )
+
+
+def test_noisy_run_without_noise_sources_or_snr_is_rejected(tmp_path: Path) -> None:
+    """P1-03: a noisy document must name its noise; it cannot import as unlabeled."""
+    root = tmp_path / "evaluations"
+    doc = json.loads(
+        (COMMITTED / "noise-v1" / "e02-isolated-test-noisy.json").read_text(encoding="utf-8")
+    )
+    doc["dataset"]["noise_sources"] = []
+    write(root, "a/noisy.json", doc)
+    with open_client(settings(tmp_path, root)) as client:
+        body = client.post("/api/evaluations/import").json()
+        assert body["imported"] == []
+        assert len(body["rejected"]) == 1
