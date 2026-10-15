@@ -5,12 +5,19 @@ from pydantic import BaseModel
 from app.constants import MODEL_SETUP_ACTION
 
 
-class ModelHealth(BaseModel):
+class UnavailableModel(BaseModel):
     status: Literal["unavailable"] = "unavailable"
-    code: Literal["checkpoint_not_installed"] = "checkpoint_not_installed"
+    code: Literal["checkpoint_not_installed", "model_incompatible"] = "checkpoint_not_installed"
     setup_action: str = MODEL_SETUP_ACTION
+
+
+class ReadyModel(BaseModel):
+    status: Literal["ready"] = "ready"
+    code: Literal["model_ready"] = "model_ready"
+    id: str
+    experimental: Literal[True] = True
 
 
 class Health(BaseModel):
     status: Literal["ok"] = "ok"
-    model: ModelHealth
+    model: UnavailableModel | ReadyModel

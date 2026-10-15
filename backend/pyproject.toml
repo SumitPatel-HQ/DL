@@ -5,6 +5,7 @@ description = "Local CPU-only keyword spotting backend"
 requires-python = ">=3.13,<3.14"
 dependencies = [
     "fastapi>=0.115,<1",
+    "python-multipart>=0.0.20,<1",
     "uvicorn>=0.34,<1",
     "torch>=2.6,<3",
     "numpy>=2,<3",

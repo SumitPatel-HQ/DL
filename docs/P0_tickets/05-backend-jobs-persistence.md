@@ -6,9 +6,20 @@ Parent: #1 (P0 Spec — LSTM Keyword Spotting)
 
 **Blocked by:** 04 (window detector and feasibility gate).
 
-**Status:** ready-for-agent
+**Status:** implemented
 
-- [ ] Upload labeled test WAV, analyze, poll, retrieve authentic Detection intervals, delete everything via API test
-- [ ] Bad WAV, too-long, unsupported Keyword, missing checkpoint, and zero-Detection cases return stable errors
-- [ ] One bounded worker; disconnects and failures clean up jobs and buffers
-- [ ] Injection of executable paths or commands via uploads or events is rejected
+- [x] Upload labeled test WAV, analyze, poll, retrieve authentic Detection intervals, delete everything via API test
+- [x] Bad WAV, too-long, unsupported Keyword, missing checkpoint, and zero-Detection cases return stable errors
+- [x] One bounded worker; disconnects and failures clean up jobs and buffers
+- [x] Injection of executable paths or commands via uploads or events is rejected
+
+Implementation and API contract: [backend-api.md](../backend-api.md).
+Automated API coverage: `backend/tests/test_recordings.py` and `test_health.py`.
+Generated test checkpoints are plumbing fixtures, not model-quality evidence.
+
+Local smoke validation also used the installed E02 checkpoint and the first held-out
+Speech Commands WAV per Keyword from `data/isolated/manifest.json`. The API returned
+authentic 0-1 s Detections for left, right, and down; up, go, and stop returned zero
+Detections. Every job completed and every Recording was deleted through the API.
+This was an API smoke check, not a new Evaluation Run or a quality claim.
+The ADR-0006 experimental limitation remains explicit in model and Detection responses.

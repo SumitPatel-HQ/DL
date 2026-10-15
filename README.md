@@ -108,6 +108,10 @@ also reports false alarms/hour on annotated negatives and an error review.
 
 ## Checks and reproducibility
 
+The [recording API guide](docs/backend-api.md) documents uploads, analysis jobs,
+SQLite storage, playback, deletion, limits, and stable error codes. Continuous
+analysis remains experimental under ADR-0006.
+
 `npm run check` runs Ruff lint and format checks, strict Python typechecking,
 TypeScript ESLint and typechecking, health-client contract tests using Node's test
 runner, and the full pytest suite. CI runs the same
@@ -141,7 +145,7 @@ checkpoint hash, code revision and timestamp.
 
 ## Layout and scope
 
-- `backend/app/`: FastAPI routes, response models, future services and database.
+- `backend/app/`: FastAPI routes, response models, bounded recording worker and SQLite metadata.
 - `backend/ml/`: configs, data, features, networks, train/evaluate/infer/spotting.
 - `frontend/`: Next.js routes, components and server-side health client.
 - `artifacts/`: local models, Evaluation Runs and system information.

@@ -16,6 +16,14 @@ test("health client accepts both model states and rejects invalid contracts", as
       status: "ok",
       model: {
         status: "unavailable",
+        code: "model_incompatible",
+        setup_action: "Install a matching checkpoint and frozen detector config.",
+      },
+    },
+    {
+      status: "ok",
+      model: {
+        status: "unavailable",
         code: "checkpoint_not_installed",
         setup_action: "Install a compatible checkpoint.",
       },
