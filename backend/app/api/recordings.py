@@ -1,5 +1,7 @@
 """Uploaded filenames are display metadata, never executable input."""
 
+import csv
+import io
 import re
 from typing import Annotated, Any
 from uuid import uuid4
@@ -9,7 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from starlette.datastructures import UploadFile
 from starlette.exceptions import HTTPException
 from starlette.requests import ClientDisconnect
-from starlette.responses import FileResponse
+from starlette.responses import FileResponse, JSONResponse
 
 from app.errors import ServiceError
 from app.services.recordings import RecordingService
@@ -89,6 +91,40 @@ def analyze(recording: str, body: Analyze, jobs: Service) -> dict[str, Any]:
 @router.get("/recordings/{recording}/detections")
 def detections(recording: str, jobs: Service) -> dict[str, Any]:
     return jobs.results(recording)
+
+
+CSV_HEADER = ("recording_id", "keyword", "start_s", "end_s", "confidence", "model_id")
+
+
+@router.get("/recordings/{recording}/detections.csv")
+def detections_csv(recording: str, jobs: Service) -> Response:
+    payload = jobs.results(recording)
+    if payload["status"] != "completed":
+        return JSONResponse(payload)
+    buffer = io.StringIO(newline="")
+    writer = csv.writer(buffer, lineterminator="\r\n")
+    writer.writerow(CSV_HEADER)
+    model_id = payload["model_id"] or ""
+    for detection in payload["detections"]:
+        writer.writerow(
+            [
+                payload["recording_id"],
+                detection["keyword"],
+                detection["start_s"],
+                detection["end_s"],
+                detection["confidence"],
+                model_id,
+            ]
+        )
+    recording_id = payload["recording_id"]
+    filename = (
+        f"{recording_id}.csv" if re.fullmatch(r"[0-9a-f]{32}", recording_id) else "detections.csv"
+    )
+    return Response(
+        content=buffer.getvalue(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.get("/recordings/{recording}/audio")

@@ -265,6 +265,7 @@ export const api = {
   deleteRecording: (id: string) =>
     request<void>(`/api/recordings/${id}`, { method: "DELETE" }),
   audioUrl: (id: string) => `${API_BASE}/api/recordings/${id}/audio`,
+  csvUrl: (id: string) => `${API_BASE}/api/recordings/${id}/detections.csv`,
   evaluations: () =>
     request<{ code: "runs_available" | "not_evaluated"; runs: RunSummary[] }>("/api/evaluations"),
   evaluation: (id: string) => request<RunDetail>(`/api/evaluations/${encodeURIComponent(id)}`),

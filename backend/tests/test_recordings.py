@@ -531,3 +531,103 @@ def test_status_write_failure_is_visible_and_worker_processes_next_job(tmp_path:
             == 202
         )
         assert completed(client, recording)["status"] == "completed"
+
+
+def test_detections_csv_matches_stored_detections(tmp_path: Path) -> None:
+    import csv as csv_module
+
+    settings = configured(tmp_path)
+    with open_client(settings) as client:
+        recording = client.post("/api/recordings", files={"file": ("go.wav", wav_bytes())}).json()[
+            "id"
+        ]
+        client.post(f"/api/recordings/{recording}/analyze", json={"keywords": ["go"]})
+        assert completed(client, recording)["status"] == "completed"
+        expected = client.get(f"/api/recordings/{recording}/detections").json()
+        assert expected["detections"], "fixture should produce at least one Detection"
+        response = client.get(f"/api/recordings/{recording}/detections.csv")
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("text/csv")
+        assert response.headers["content-disposition"] == f'attachment; filename="{recording}.csv"'
+        rows = list(csv_module.reader(response.text.splitlines()))
+        assert rows[0] == [
+            "recording_id",
+            "keyword",
+            "start_s",
+            "end_s",
+            "confidence",
+            "model_id",
+        ]
+        assert len(rows) - 1 == len(expected["detections"])
+        for line, detection in zip(rows[1:], expected["detections"], strict=True):
+            assert line[0] == recording == expected["recording_id"]
+            assert line[1] == detection["keyword"]
+            assert float(line[2]) == detection["start_s"]
+            assert float(line[3]) == detection["end_s"]
+            assert float(line[4]) == detection["confidence"]
+            assert line[5] == (expected["model_id"] or "")
+
+
+def test_detections_csv_empty_is_headers_only(tmp_path: Path) -> None:
+    import csv as csv_module
+
+    with open_client(configured(tmp_path, label=7)) as client:
+        recording = client.post(
+            "/api/recordings", files={"file": ("silence.wav", wav_bytes())}
+        ).json()["id"]
+        client.post(f"/api/recordings/{recording}/analyze", json={"keywords": ["go"]})
+        assert completed(client, recording)["status"] == "completed"
+        assert client.get(f"/api/recordings/{recording}/detections").json()["detections"] == []
+        response = client.get(f"/api/recordings/{recording}/detections.csv")
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("text/csv")
+        rows = list(csv_module.reader(response.text.splitlines()))
+        assert rows == [["recording_id", "keyword", "start_s", "end_s", "confidence", "model_id"]]
+
+
+def test_detections_csv_gated_returns_json_without_csv_body(tmp_path: Path) -> None:
+    settings = configured(tmp_path)
+    with open_client(settings) as client:
+        recording = client.post("/api/recordings", files={"file": ("go.wav", wav_bytes())}).json()[
+            "id"
+        ]
+        pending = client.get(f"/api/recordings/{recording}/detections.csv")
+        assert pending.status_code == 200
+        assert "text/csv" not in pending.headers["content-type"]
+        assert pending.json()["code"] == "analysis_not_completed"
+        assert pending.json()["status"] == "uploaded"
+        broken = client.post("/api/recordings", files={"file": ("go.wav", wav_bytes())}).json()[
+            "id"
+        ]
+        (settings.storage / "audio" / f"{broken}.wav").unlink()
+        client.post(f"/api/recordings/{broken}/analyze", json={"keywords": ["go"]})
+        assert completed(client, broken)["status"] == "failed"
+        failed = client.get(f"/api/recordings/{broken}/detections.csv")
+        assert failed.status_code == 200
+        assert "text/csv" not in failed.headers["content-type"]
+        assert failed.json()["status"] == "failed"
+        assert failed.json()["code"] == "analysis_failed"
+        missing = client.get("/api/recordings/00000000000000000000000000000000/detections.csv")
+        assert missing.status_code == 404
+        assert missing.json()["error"]["code"] == "recording_not_found"
+
+
+def test_detections_csv_rejects_injection_filenames_and_omits_paths(tmp_path: Path) -> None:
+    settings = configured(tmp_path)
+    with open_client(settings) as client:
+        for filename in ("../escape.wav", "cmd.exe;calc.wav"):
+            result = client.post("/api/recordings", files={"file": (filename, wav_bytes())})
+            assert result.status_code == 422
+            assert result.json()["error"]["code"] == "invalid_filename"
+        assert client.get("/api/recordings").json() == []
+        recording = client.post("/api/recordings", files={"file": ("go.wav", wav_bytes())}).json()[
+            "id"
+        ]
+        client.post(f"/api/recordings/{recording}/analyze", json={"keywords": ["go"]})
+        assert completed(client, recording)["status"] == "completed"
+        response = client.get(f"/api/recordings/{recording}/detections.csv")
+        assert response.status_code == 200
+        assert ".wav" not in response.text
+        assert str(settings.storage) not in response.text
+        assert "audio_path" not in response.text
+        assert response.headers["content-disposition"] == f'attachment; filename="{recording}.csv"'

@@ -437,23 +437,34 @@ export function RecordingReview({
               </p>
             ) : null}
           </div>
-          {shownResult && detections.length ? (
-            <div className="filters" role="group" aria-label="Filter by Keyword">
-              {recording.keywords.map((keyword) => (
-                <button
-                  key={keyword}
-                  type="button"
-                  className="chip"
-                  style={kwStyle(keyword)}
-                  aria-pressed={visible.has(keyword)}
-                  onClick={() => toggleFilter(keyword)}
-                >
-                  <span className="swatch" />
-                  {keyword} <span className="mono" style={{ color: "var(--muted)" }}>{counts.get(keyword) ?? 0}</span>
-                </button>
-              ))}
-            </div>
-          ) : null}
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            {shownResult && detections.length ? (
+              <div className="filters" role="group" aria-label="Filter by Keyword">
+                {recording.keywords.map((keyword) => (
+                  <button
+                    key={keyword}
+                    type="button"
+                    className="chip"
+                    style={kwStyle(keyword)}
+                    aria-pressed={visible.has(keyword)}
+                    onClick={() => toggleFilter(keyword)}
+                  >
+                    <span className="swatch" />
+                    {keyword} <span className="mono" style={{ color: "var(--muted)" }}>{counts.get(keyword) ?? 0}</span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            {recording.status === "completed" ? (
+              <a
+                className="btn small"
+                href={api.csvUrl(recording.id)}
+                download={`${recording.id}.csv`}
+              >
+                Export CSV
+              </a>
+            ) : null}
+          </div>
         </div>
         {resultError ? (
           <div className="card-body"><ErrorBanner code={resultError} handlers={{ retry: () => setReload((n) => n + 1) }} /></div>
