@@ -1,0 +1,20 @@
+{
+  "speech": {
+    "url": "https://storage.googleapis.com/download.tensorflow.org/data/speech_commands_v0.02.tar.gz",
+    "version": "Speech Commands v0.02, 2018-04-11",
+    "license": "CC-BY-4.0; retain archive LICENSE and README.md",
+    "attribution": "Pete Warden, Speech Commands: A Dataset for Limited-Vocabulary Speech Recognition, 2018, arXiv:1804.03209",
+    "consent": "Public contributed dataset released by its publisher under CC-BY-4.0. Individual consent forms are not independently held by this project.",
+    "permitted_use": "Local academic training and evaluation under CC-BY-4.0 with attribution; do not infer participant identity.",
+    "retention": "Local ignored data storage until project completion or manual deletion; no application upload or redistribution."
+  },
+  "noise": {
+    "url": "https://storage.googleapis.com/download.tensorflow.org/data/speech_commands_v0.02.tar.gz#_background_noise_",
+    "version": "Speech Commands v0.02 background noise",
+    "license": "CC-BY-4.0, explicitly stated in _background_noise_/README.md",
+    "attribution": "Pete Warden, personally collected noise, July 2017; publisher-generated pink and white noise. Retain _background_noise_/README.md.",
+    "consent": "Publisher-provided non-speech noise under CC-BY-4.0; no project-collected human speech consent is claimed.",
+    "permitted_use": "Local academic Silence-class training and isolated evaluation; generated noise is not natural continuous-speech evaluation evidence.",
+    "retention": "Local ignored data storage until project completion or manual deletion; no application upload or redistribution."
+  }
+}

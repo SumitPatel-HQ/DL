@@ -1,0 +1,76 @@
+{
+  "dataset_version": "speech-commands-v0.02-p0-subset-v1",
+  "split_version": "speaker-sha256-80-10-10-noise-source-round-robin-v1",
+  "manifest_sha256": "18d35280a2d421f0c1fea16fffb93950c4d3f3fba37b4124772ca6d36030b9eb",
+  "normalization_sha256": "83f32c1fdacc83472432b56c0b15f89d0582755e1285fb6ff24f0a873a3a0b68",
+  "total_examples": 3086,
+  "splits": {
+    "train": {
+      "examples": {
+        "down": 128,
+        "go": 128,
+        "left": 128,
+        "right": 128,
+        "silence": 155,
+        "stop": 128,
+        "unknown": 128,
+        "up": 128
+      },
+      "speech_speakers": 255,
+      "unknown_words": [
+        "cat",
+        "dog",
+        "no",
+        "tree",
+        "yes"
+      ]
+    },
+    "validation": {
+      "examples": {
+        "down": 128,
+        "go": 128,
+        "left": 128,
+        "right": 128,
+        "silence": 122,
+        "stop": 128,
+        "unknown": 128,
+        "up": 128
+      },
+      "speech_speakers": 171,
+      "unknown_words": [
+        "cat",
+        "dog",
+        "no",
+        "tree",
+        "yes"
+      ]
+    },
+    "test": {
+      "examples": {
+        "down": 128,
+        "go": 128,
+        "left": 128,
+        "right": 128,
+        "silence": 121,
+        "stop": 128,
+        "unknown": 128,
+        "up": 128
+      },
+      "speech_speakers": 172,
+      "unknown_words": [
+        "cat",
+        "dog",
+        "no",
+        "tree",
+        "yes"
+      ]
+    }
+  },
+  "source_evidence_sha256": {
+    "README.md": "b415da1f2d880bcce33b2958fcba9bba46013c1bc5592fa4aaa85759d9308b6f",
+    "LICENSE": "fd3a263fe19ed8faa9068b43abaebafc02c77897b0c6fc09abc04bb592e5f16e",
+    "_background_noise_/README.md": "278de4553062a1d680a8d13ee1aaa616ab5a387384e9588d376085c35243a3a3"
+  },
+  "natural_continuous_dataset": "pending collection and manual annotation",
+  "model_evaluation": "not evaluated; ticket 3"
+}

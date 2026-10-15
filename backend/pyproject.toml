@@ -9,6 +9,7 @@ dependencies = [
     "torch>=2.6,<3",
     "numpy>=2,<3",
     "psutil>=7,<8",
+    "scipy>=1.15,<2",
 ]
 
 [dependency-groups]
@@ -18,6 +19,7 @@ dev = [
     "ruff>=0.11,<1",
     "mypy>=1.15,<2",
     "types-psutil>=7,<8",
+    "scipy-stubs>=1.18.1.1",
 ]
 
 [[tool.uv.index]]

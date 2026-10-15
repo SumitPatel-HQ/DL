@@ -2,6 +2,10 @@
 
 Local LSTM keyword spotting for recorded audio and bounded in-app voice control.
 Ticket 1 provides the API health contract, Next.js shell and CPU-only tooling.
+Ticket 2 adds Speech Commands subset manifests, speaker-disjoint splits, cached
+MFCC features, train-only normalization and continuous-annotation validation.
+See [data preparation and collection instructions](docs/data/README.md).
+Natural continuous-speech collection and annotation remain pending.
 Training, checkpoint loading, audio analysis, microphone sessions, persistence and
 Evaluation Runs are not implemented yet. No model results are claimed.
 
@@ -87,10 +91,10 @@ baseline is in [artifacts/system/baseline.json](artifacts/system/baseline.json).
 It describes the development machine, not proof of performance on the target
 Ryzen 5 5500U/16GB laptop. No CPU training/inference time is measured in ticket 1.
 
-The draft [baseline config](backend/ml/configs/baseline.json) records planned class
-order, canonical audio, MFCC settings, fixed seed and CPU LSTM dimensions. Threshold
-and consistency remain unset until validation calibration. Ticket 2 must freeze
-normalization and feature implementation before any checkpoint is considered compatible.
+The [baseline config](backend/ml/configs/baseline.json) records ordered classes,
+the frozen MFCC-v1 contract, fixed seed and CPU LSTM dimensions. Threshold
+and consistency remain unset until validation calibration. Ticket 2 freezes
+train-only normalization and the shared feature implementation.
 Future checkpoints and Evaluation Runs must store the exact config, split version,
 checkpoint hash, code revision and timestamp.
 
