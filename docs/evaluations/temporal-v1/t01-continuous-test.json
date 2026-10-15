@@ -1,10 +1,10 @@
 {
   "run_id": "t01-continuous-test-7db0c2ab9f0a",
   "kind": "continuous",
-  "created_at": "2026-10-15T23:20:12.140571+00:00",
+  "created_at": "2026-10-15T23:26:14.517410+00:00",
   "code_revision": {
-    "commit": "8589920d8fd82505c03b5bb9b27d36dc11a17d70",
-    "dirty": true
+    "commit": "9329dce5784fd59363498eee8fedf706508cecbe",
+    "dirty": false
   },
   "experiment_id": "T01",
   "model_family": "temporal-bilstm-frame",
@@ -32,8 +32,8 @@
         "ami-EN2004a-47294400-52094400": "43079eb3641e4bee108c55705793dc45f5e87aae4b9da9685b8173d96f301d60"
       }
     },
-    "detector_created_at": "2026-10-15T23:19:48.495630+00:00",
-    "file_sha256": "0ae9f9cbc52b159d949436017081a9cb6f290486dcd277f522eb630d0992c202"
+    "detector_created_at": "2026-10-15T23:25:45.197896+00:00",
+    "file_sha256": "fdbf21884d29aa5af9bd0d06e9795f381d66d202fe6938520d35eea130312cfc"
   },
   "dataset": {
     "dataset_version": "ami-natural-p0-v1",
@@ -1612,8 +1612,8 @@
       "os": "Windows-11-10.0.26300-SP0",
       "cpu": "AMD64 Family 23 Model 104 Stepping 1, AuthenticAMD"
     },
-    "scoring_seconds": 4.295612000001711,
-    "real_time_factor": 0.007159353333336184,
-    "peak_rss_bytes": 791822336
+    "scoring_seconds": 5.160401899993303,
+    "real_time_factor": 0.008600669833322172,
+    "peak_rss_bytes": 791547904
   }
 }
