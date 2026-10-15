@@ -3,9 +3,12 @@
 import argparse
 import json
 from collections.abc import Iterator
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import numpy as np
+from numpy.typing import NDArray
 
 from ml.data.manifest import (
     SPLITS,
@@ -81,6 +84,33 @@ def prepare_cache(manifest_path: Path, root: Path, output: Path) -> Normalizatio
             ),
         )
     return stats
+
+
+@dataclass(frozen=True)
+class CachedSplit:
+    features: NDArray[np.float32]
+    labels: NDArray[np.int64]
+    metadata: dict[str, Any]
+
+
+def load_cache(features_dir: Path, split: str) -> CachedSplit:
+    """Load one cached split, rejecting stale normalization or incompatible metadata."""
+    if split not in SPLITS:
+        raise ValueError("Invalid split")
+    with np.load(features_dir / f"{split}.npz", allow_pickle=False) as cached:
+        features, labels = cached["features"], cached["labels"]
+        metadata: dict[str, Any] = json.loads(str(cached["metadata"]))
+    if (
+        metadata["features"] != FEATURE_CONFIG
+        or metadata["labels"] != list(LABELS)
+        or metadata["split"] != split
+    ):
+        raise ValueError(f"Incompatible feature metadata, class order or split in {split}")
+    if metadata["normalization_sha256"] != file_sha256(features_dir / "normalization.json"):
+        raise ValueError("Cache was built with different normalization; regenerate it")
+    if features.ndim != 3 or features.shape[2:] != (40,) or len(features) != len(labels):
+        raise ValueError("Expected [examples, frames, 40] features aligned with labels")
+    return CachedSplit(features.astype(np.float32), labels.astype(np.int64), metadata)
 
 
 def as_example(example: Example) -> dict[str, str | float]:

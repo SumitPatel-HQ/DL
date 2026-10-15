@@ -6,8 +6,10 @@ Ticket 2 adds Speech Commands subset manifests, speaker-disjoint splits, cached
 MFCC features, train-only normalization and continuous-annotation validation.
 See [data preparation and collection instructions](docs/data/README.md).
 Natural continuous-speech collection and annotation remain pending.
-Training, checkpoint loading, audio analysis, microphone sessions, persistence and
-Evaluation Runs are not implemented yet. No model results are claimed.
+Ticket 3 adds CPU LSTM training, self-describing checkpoints and isolated
+Evaluation Runs. See [E01 vs E02 results](docs/evaluations/isolated-v1/README.md):
+E02 reaches test macro-F1 0.740, below the 0.85 target. Audio analysis, microphone
+sessions, persistence and continuous-event evaluation are not implemented yet.
 
 ## Setup on Windows
 
@@ -60,11 +62,30 @@ displays "Model ready". This defines the future response contract; the scaffold
 backend continues to return unavailable. Unavailable responses require
 `code: "checkpoint_not_installed"` and a string `setup_action`.
 
-Complete [ticket 3](docs/P0_tickets/03-train-isolated-eval.md) to train and install
-a compatible checkpoint plus ordered labels and feature metadata in
-`artifacts/models/`. This scaffold has no loader, so copying an arbitrary `.pt` file
-does not change readiness. Ticket 3 must add validated checkpoint loading before
-reporting a model ready.
+[Ticket 3](docs/P0_tickets/03-train-isolated-eval.md) trains checkpoints into
+`artifacts/models/` with ordered labels, feature config and normalization.
+`ml.checkpoint.load_checkpoint` validates and reloads them without retraining.
+The API does not load a checkpoint yet, so health still reports unavailable.
+Ticket 5 connects the active model to the API.
+
+## Training and isolated evaluation
+
+Prepare the cache first (see [data preparation](docs/data/README.md)). Then, from
+`backend/`:
+
+```powershell
+uv run --locked python -m ml.train --config ml/configs/e01.json --features ../data/isolated/features --output ../artifacts/models/e01
+uv run --locked python -m ml.evaluate run --checkpoint ../artifacts/models/e01/model.pt --features ../data/isolated/features --split test --output ../artifacts/evaluations/e01-test.json
+```
+
+Training uses cross-entropy, Adam, validation-loss early stopping, fixed seeds,
+deterministic kernels and a fixed thread count. It writes `model.pt`,
+`training.json` and per-epoch `curves.csv`. Reruns reproduce the same losses and
+metrics. Evaluation accepts only validation or test splits. It refuses caches
+whose manifest or normalization differ from the checkpoint. It reports macro-F1,
+per-class precision/recall/F1 including Unknown and Silence, the confusion
+matrix, training curves, CPU latency and peak RAM. `ml.evaluate compare` refuses
+runs from different splits. Choose between models on validation, not test.
 
 ## Checks and reproducibility
 
@@ -89,7 +110,8 @@ not in the production runtime dependency tree.
 total/available RAM, installed package versions and CUDA status. The reviewed
 baseline is in [artifacts/system/baseline.json](artifacts/system/baseline.json).
 It describes the development machine, not proof of performance on the target
-Ryzen 5 5500U/16GB laptop. No CPU training/inference time is measured in ticket 1.
+Ryzen 5 5500U/16GB laptop. Ticket 3 Evaluation Runs record measured CPU training
+time, inference latency and peak RAM.
 
 The [baseline config](backend/ml/configs/baseline.json) records ordered classes,
 the frozen MFCC-v1 contract, fixed seed and CPU LSTM dimensions. Threshold

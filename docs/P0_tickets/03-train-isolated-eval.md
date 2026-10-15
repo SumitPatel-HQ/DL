@@ -6,9 +6,16 @@ Parent: #1 (P0 Spec — LSTM Keyword Spotting)
 
 **Blocked by:** 02 (data, features, and annotations).
 
-**Status:** ready-for-agent
+**Status:** implemented; isolated macro-F1 target not met
 
-- [ ] Training command produces a reloadable checkpoint without retraining to load
-- [ ] Evaluate command reproducibly reports macro-F1 and confusion matrix on held-out split
-- [ ] E01 vs E02 compared on identical split with size and CPU inference latency
-- [ ] No BiLSTM, CNN, or CTC in this ticket
+- [x] Training command produces a reloadable checkpoint without retraining to load
+- [x] Evaluate command reproducibly reports macro-F1 and confusion matrix on held-out split
+- [x] E01 vs E02 compared on identical split with size and CPU inference latency
+- [x] No BiLSTM, CNN, or CTC in this ticket
+
+E01 and E02 are trained and evaluated on the same speaker-disjoint cache.
+E02 was selected on validation and reaches test macro-F1 0.740 against the 0.85
+hypothesis target; E01 reaches 0.641. See [the Evaluation Runs](../evaluations/isolated-v1/README.md)
+for per-class metrics, confusion matrices, curves, size, latency and peak RAM.
+The main limits are 128 training clips per Keyword, weak Unknown separation and
+only two noise sources per split for Silence.

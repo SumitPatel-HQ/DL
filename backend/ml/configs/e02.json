@@ -1,0 +1,23 @@
+{
+  "experiment_id": "E02",
+  "seed": 42,
+  "network": {
+    "type": "lstm",
+    "hidden_size": 128,
+    "num_layers": 2,
+    "dropout": 0.2
+  },
+  "training": {
+    "batch_size": 32,
+    "optimizer": "adam",
+    "learning_rate": 0.002,
+    "loss": "cross_entropy",
+    "max_epochs": 80,
+    "early_stopping": {
+      "monitor": "validation_loss",
+      "patience": 10
+    },
+    "grad_clip_norm": 5.0,
+    "num_threads": 4
+  }
+}

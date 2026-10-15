@@ -1,5 +1,4 @@
 MODEL_SETUP_ACTION = (
-    "Complete ticket 3 to train and install a compatible checkpoint with "
-    "class labels and feature metadata in artifacts/models/. "
-    "Model loading is not implemented in this scaffold."
+    "Train a checkpoint with backend/ml/train.py into artifacts/models/. "
+    "The API does not load checkpoints until ticket 5 connects the active model."
 )

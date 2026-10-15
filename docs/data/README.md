@@ -98,8 +98,8 @@ NPZ files contain `features`, integer `labels`, JSON `examples`, and JSON
 `metadata`; read with `allow_pickle=False`. Cache metadata includes normalization
 hash. Regenerate caches if source, manifest or pipeline changes. Inference loads
 the saved statistics and rejects incompatible feature metadata or class order.
-Ticket 3 must bind these artifacts to the actual checkpoint hash; no checkpoint
-exists yet. Tests compare a training cache row with inference on the same WAV.
+Ticket 3 checkpoints embed these statistics and the cache hashes; Evaluation
+Runs record the checkpoint SHA-256 with them. Tests compare a training cache row with inference on the same WAV.
 
 ## Natural continuous-speech collection, pending
 
