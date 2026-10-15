@@ -14,6 +14,7 @@ from ml.checkpoint import LoadedModel
 from ml.features import LABELS
 from ml.features.pipeline import SAMPLE_RATE, WINDOW_SAMPLES, Audio
 from ml.metrics import span_center
+from ml.vocabulary import keywords_for
 
 KEYWORDS = tuple(label for label in LABELS if label not in ("unknown", "silence"))
 WINDOW_S = WINDOW_SAMPLES / SAMPLE_RATE
@@ -112,7 +113,7 @@ def detect(
     """
     if config.stride_s != scores.stride_s:
         raise ValueError("Window scores were computed with a different stride")
-    if not set(keywords) <= set(KEYWORDS):
+    if not set(keywords) <= set(keywords_for(labels)):
         raise ValueError("Detections are only available for trained Keywords")
     if scores.probabilities.shape != (len(scores.starts_s), len(labels)):
         raise ValueError("Window scores do not match the label list")
@@ -156,7 +157,12 @@ def spot_audio(
     loaded: LoadedModel,
     audio: Audio,
     config: DetectorConfig,
-    keywords: tuple[str, ...] = KEYWORDS,
+    keywords: tuple[str, ...] | None = None,
 ) -> list[Detection]:
     """End to end: score every window of canonical 16 kHz mono audio, then `detect`."""
-    return detect(score_windows(loaded, audio, config.stride_s), config, keywords, loaded.labels)
+    return detect(
+        score_windows(loaded, audio, config.stride_s),
+        config,
+        keywords if keywords is not None else keywords_for(loaded.labels),
+        loaded.labels,
+    )

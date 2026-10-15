@@ -93,6 +93,8 @@ def evaluate(
     if condition == "noisy" and not (features_dir / f"{cache_name}.npz").exists():
         raise ValueError(f"No noisy feature cache for the {split} split; build it first")
     cached = load_cache(features_dir, split, cache_name=cache_name)
+    if tuple(cached.metadata["labels"]) != loaded.labels:
+        raise ValueError("Cache and checkpoint class order disagree")
     trained_on = loaded.metadata["dataset"]
     dataset = {key: cached.metadata[key] for key in DATASET_KEYS}
     effective_condition = condition or "clean"

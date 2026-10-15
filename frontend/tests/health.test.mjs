@@ -11,6 +11,8 @@ afterEach(() => {
 test("health client accepts both model states and rejects invalid contracts", async (t) => {
   process.env.API_BASE_URL = "http://127.0.0.1:8000";
   const payloads = [
+    { status: "ok", model: { status: "unavailable", code: "vocabulary_not_reviewed",
+      setup_action: "Restore the P0 checkpoint while expanded vocabulary awaits review." } },
     { status: "ok", model: { status: "unavailable", code: "worker_unavailable",
       setup_action: "Worker is waiting for metadata storage recovery." } },
     { status: "ok", model: { status: "ready", code: "model_ready" } },

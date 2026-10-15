@@ -125,7 +125,12 @@ Application errors use `{"error":{"code":"...","message":"..."}}`.
 | `analysis_in_progress`, `delete_failed` | 409 |
 | `audio_unavailable` | 410 |
 | `queue_full`, `rate_limited`, `uploads_busy` | 429 |
-| `checkpoint_not_installed`, `model_incompatible`, `worker_unavailable`, `storage_error`, `persistence_error`, `evaluations_unavailable` | 503 |
+| `checkpoint_not_installed`, `model_incompatible`, `vocabulary_not_reviewed`, `worker_unavailable`, `storage_error`, `persistence_error`, `evaluations_unavailable` | 503 |
+
+`vocabulary_not_reviewed` means an expanded offline checkpoint was configured for
+serving before its data and Evaluation Runs were reviewed. Health reports the
+model as unavailable; active-model and live requests are blocked. Restore the P0
+checkpoint and its matching detector. See [the vocabulary gate](data/vocabulary-expansion.md).
 
 Worker inference failures use Recording status `failed` and `error_code: "analysis_failed"`.
 Metadata write failures use `persistence_error`. If even saving failure status is

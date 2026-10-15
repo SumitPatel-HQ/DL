@@ -11,6 +11,7 @@ from numpy.typing import NDArray
 from ml.data.manifest import file_sha256
 from ml.features import FEATURE_CONFIG, LABELS, FeaturePipeline, Normalization
 from ml.networks import LstmClassifier
+from ml.vocabulary import validate_labels
 
 CHECKPOINT_FORMAT = "kws-lstm-checkpoint-v1"
 
@@ -43,11 +44,15 @@ def save_checkpoint(
     """Write the checkpoint and return its SHA-256. Metadata must not contain weights."""
     if "network" not in metadata:
         raise ValueError("Checkpoint metadata requires network dimensions")
+    labels = tuple(metadata.get("labels", LABELS))
+    validate_labels(labels)
+    if model.head.out_features != len(labels) or normalization.labels != labels:
+        raise ValueError("Checkpoint class order does not match network or normalization")
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         **metadata,
         "format": CHECKPOINT_FORMAT,
-        "labels": list(LABELS),
+        "labels": list(labels),
         "features": FEATURE_CONFIG,
         "normalization": asdict(normalization),
         "state_dict": model.state_dict(),
@@ -61,19 +66,26 @@ def load_checkpoint(path: Path) -> LoadedModel:
     payload: dict[str, Any] = torch.load(path, map_location="cpu", weights_only=True)
     if payload.get("format") != CHECKPOINT_FORMAT:
         raise ValueError("Unsupported checkpoint format")
-    if payload["labels"] != list(LABELS) or payload["features"] != FEATURE_CONFIG:
+    labels = tuple(payload["labels"])
+    validate_labels(labels)
+    if payload["features"] != FEATURE_CONFIG:
         raise ValueError("Checkpoint class order or feature config is incompatible")
     network = payload["network"]
     if network.get("type") != "lstm" or network.get("pooling") != LstmClassifier.pooling:
         raise ValueError("Only mean-pooled LSTM checkpoints are supported")
-    model = LstmClassifier(network["hidden_size"], network["num_layers"], network["dropout"])
+    model = LstmClassifier(
+        network["hidden_size"], network["num_layers"], network["dropout"], n_classes=len(labels)
+    )
     model.load_state_dict(payload.pop("state_dict"))
     model.eval()
     values = dict(payload["normalization"])
     values["mean"], values["std"] = tuple(values["mean"]), tuple(values["std"])
+    values["labels"] = tuple(values.get("labels", LABELS))
+    if values["labels"] != labels:
+        raise ValueError("Checkpoint and normalization class order disagree")
     return LoadedModel(
         model,
-        LABELS,
+        labels,
         Normalization(**values),
         payload,
         path,

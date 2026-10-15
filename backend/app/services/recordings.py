@@ -18,9 +18,10 @@ from app.db.store import ACTIVE_STATUSES, Store, is_active_status
 from app.errors import ServiceError
 from app.settings import Settings
 from ml.checkpoint import LoadedModel, load_checkpoint
-from ml.features import FEATURE_CONFIG
+from ml.features import FEATURE_CONFIG, LABELS
 from ml.features.pipeline import SAMPLE_RATE, WINDOW_SAMPLES, read_wav
 from ml.spotting import KEYWORDS, DetectorConfig, WindowScores, detect, score_windows, window_starts
+from ml.vocabulary import VOCABULARY_REVIEW_ACTION
 
 EVIDENCE = "docs/evaluations/continuous-v1/e02-continuous-test.json"
 LIMITATION = "Experimental sliding-window Detection; natural-speech feasibility target was not met."
@@ -76,6 +77,8 @@ class RecordingService:
         if settings.checkpoint.is_file():
             try:
                 self.loaded = load_checkpoint(settings.checkpoint)
+                if self.loaded.labels != LABELS:
+                    raise ServiceError("vocabulary_not_reviewed", VOCABULARY_REVIEW_ACTION, 503)
                 detector = json.loads(settings.detector.read_text(encoding="utf-8"))
                 if (
                     detector["format"] != "kws-detector-v1"
@@ -97,10 +100,17 @@ class RecordingService:
                             json.dumps(FEATURE_CONFIG),
                         ),
                     )
-            except Exception:
+            except Exception as exc:
                 self.loaded = None
                 self.config = None
-                self.model_error = "model_incompatible"
+                self.model_error = (
+                    exc.code if isinstance(exc, ServiceError) else "model_incompatible"
+                )
+        self.model_setup_action = (
+            VOCABULARY_REVIEW_ACTION
+            if self.model_error == "vocabulary_not_reviewed"
+            else MODEL_SETUP_ACTION
+        )
         self.condition = Condition(self.store.lock)
         self.queue: deque[str] = deque()
         self.stopping = Event()
@@ -119,7 +129,7 @@ class RecordingService:
             return {
                 "status": "unavailable",
                 "code": self.model_error,
-                "setup_action": MODEL_SETUP_ACTION,
+                "setup_action": self.model_setup_action,
             }
         return {
             "status": "ready",
@@ -134,7 +144,7 @@ class RecordingService:
                 "worker_unavailable", "Worker is waiting for metadata storage recovery.", 503
             )
         if self.loaded is None or self.config is None:
-            raise ServiceError(self.model_error, MODEL_SETUP_ACTION, 503)
+            raise ServiceError(self.model_error, self.model_setup_action, 503)
         return {
             "id": self.loaded.sha256,
             "version": self.loaded.metadata.get("experiment_id"),

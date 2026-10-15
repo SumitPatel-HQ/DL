@@ -2,7 +2,7 @@ export type Health = {
   status: "ok";
   model: {
     status: "unavailable";
-    code: "checkpoint_not_installed" | "model_incompatible" | "worker_unavailable";
+    code: "checkpoint_not_installed" | "model_incompatible" | "worker_unavailable" | "vocabulary_not_reviewed";
     setup_action: string;
   } | {
     status: "ready";
@@ -40,7 +40,7 @@ export async function getHealth(): Promise<Health> {
     if (
       model.status === "unavailable" &&
       (model.code === "checkpoint_not_installed" || model.code === "model_incompatible" ||
-        model.code === "worker_unavailable") &&
+        model.code === "worker_unavailable" || model.code === "vocabulary_not_reviewed") &&
       "setup_action" in model &&
       typeof model.setup_action === "string"
     ) {

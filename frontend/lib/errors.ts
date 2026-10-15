@@ -137,6 +137,11 @@ const COPY: Record<string, ErrorCopy> = {
     detail: "The checkpoint and frozen detector config do not match. Install a matching pair.",
     recovery: "install_model",
   },
+  vocabulary_not_reviewed: {
+    title: "Vocabulary awaiting review",
+    detail: "The expanded vocabulary needs reviewed Evaluation Runs. Restore the P0 checkpoint and its detector.",
+    recovery: "install_model",
+  },
   worker_unavailable: {
     title: "Worker waiting for storage",
     detail: "Metadata writes failed and the analysis worker is retrying.",

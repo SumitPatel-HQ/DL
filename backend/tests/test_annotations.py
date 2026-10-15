@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from ml.data.annotations import ContinuousRecording, read_events, validate_annotations
+from ml.data.annotations import ContinuousRecording, Event, read_events, validate_annotations
 
 
 def recordings() -> tuple[ContinuousRecording, ...]:
@@ -46,6 +46,38 @@ def test_natural_event_set_requires_duration_negatives_and_disjoint_speakers(
         validate_annotations(tuple(replace(r, natural=False) for r in recordings()), events)
     with pytest.raises(ValueError, match="600"):
         validate_annotations(tuple(replace(r, duration_s=100) for r in recordings()), events)
+
+
+def test_expanded_continuous_annotations_require_new_keywords_in_both_splits(
+    tmp_path: Path,
+) -> None:
+    labels = (
+        "left",
+        "right",
+        "up",
+        "down",
+        "go",
+        "stop",
+        "next",
+        "pause",
+        "urgent",
+        "unknown",
+        "silence",
+    )
+    original = read_events(csv_file(tmp_path))
+    expanded = (
+        *original,
+        *(
+            Event(split, word, i, i + 0.5)
+            for split in ("validation", "test")
+            for i, word in enumerate(("next", "pause", "urgent"), 7)
+        ),
+    )
+    assert validate_annotations(recordings(), expanded, labels=labels) == 600
+    with pytest.raises(ValueError, match="unsupported"):
+        validate_annotations(recordings(), expanded)
+    with pytest.raises(ValueError, match="requires Keywords"):
+        validate_annotations(recordings(), original, labels=labels)
 
 
 def test_annotation_rejects_bad_intervals_overlaps_and_unknown_recordings(tmp_path: Path) -> None:

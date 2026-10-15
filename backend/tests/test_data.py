@@ -11,6 +11,35 @@ from ml.features import LABELS
 from ml.infer import features_for_inference
 
 
+def test_expanded_manifest_requires_new_word_provenance_and_rebuilds_unknown(
+    corpus: Path, sources: dict[str, Source], tmp_path: Path
+) -> None:
+    from conftest import write_wav
+
+    from ml.data.manifest import Source, speaker_split
+
+    expanded = (*LABELS[:6], "next", "pause", "urgent", "unknown", "silence")
+    for split in ("train", "validation", "test"):
+        speaker = next(f"s{i}" for i in range(1000) if speaker_split(f"s{i}") == split)
+        for word in ("next", "pause", "urgent"):
+            write_wav(corpus / word / f"{speaker}_nohash_0.wav")
+    with pytest.raises(ValueError, match="provenance"):
+        build_manifest(corpus, sources, labels=expanded, max_per_class=1)
+    licensed = Source("fixture://new", "v1", "test-only", "fixture", "generated", "tests", "temp")
+    expanded_sources = {**sources, **dict.fromkeys(("next", "pause", "urgent"), licensed)}
+    manifest = build_manifest(corpus, expanded_sources, labels=expanded, max_per_class=1)
+    assert manifest.dataset_version == "speech-commands-v0.02-p2-vocab-v1"
+    assert manifest.labels == expanded
+    for split in ("train", "validation", "test"):
+        rows = [e for e in manifest.examples if e.split == split]
+        assert {e.label for e in rows} == set(expanded)
+        assert {e.original_word for e in rows if e.label == "unknown"} == {"cat", "dog", "tree"}
+        assert all(e.source_id == e.label for e in rows if e.label in ("next", "pause", "urgent"))
+    path = tmp_path / "expanded.json"
+    save_manifest(manifest, path)
+    assert load_manifest(path) == manifest
+
+
 def test_manifest_roundtrip_has_all_classes_without_speaker_or_source_leakage(
     corpus: Path, sources: dict[str, Source], tmp_path: Path
 ) -> None:

@@ -116,7 +116,7 @@ def test_preparation_writes_validated_wavs_csv_and_honest_quality_metadata(tmp_p
             {
                 "dataset_version": "fixture",
                 "split_version": "fixture",
-                "labels": [],
+                "labels": ["left", "right", "up", "down", "go", "stop", "unknown", "silence"],
                 "sources": {},
                 "examples": [],
             }

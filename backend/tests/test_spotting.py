@@ -12,6 +12,7 @@ from ml.evaluate_continuous import (
     Reference,
     SplitRecording,
     check_frozen,
+    evaluate_scores,
     score_recording,
     summarize,
     tune,
@@ -30,6 +31,39 @@ from ml.spotting import (
 )
 
 STRIDE = 0.25
+
+
+def test_expanded_evaluation_counts_new_keyword_hits_and_unknown_rejection() -> None:
+    labels = (*LABELS[:-2], "next", "pause", "urgent", "unknown", "silence")
+    votes = ("next", "pause", "urgent", "unknown", "silence")
+    probabilities = np.zeros((5, 11), dtype=np.float32)
+    for i, label in enumerate(votes):
+        probabilities[i, labels.index(label)] = 1.0
+    scores_by_id = {"expanded": WindowScores(np.arange(5, dtype=np.float64), probabilities, 1.0)}
+    references = tuple(Reference(label, i + 0.1, i + 0.9) for i, label in enumerate(votes))
+    data = ContinuousSplit(
+        "fixture",
+        "fixture",
+        "test",
+        "fixture-only",
+        (
+            SplitRecording(
+                "expanded",
+                "a" * 64,
+                5.0,
+                ("speaker",),
+                references,
+                np.zeros(80000, dtype=np.float32),
+            ),
+        ),
+    )
+    metrics, detections, _ = evaluate_scores(
+        data, scores_by_id, DetectorConfig(stride_s=1.0, min_consecutive=1), 0.5, labels
+    )
+    assert [d.keyword for d in detections["expanded"]] == ["next", "pause", "urgent"]
+    assert metrics["true_positive"] == 3
+    assert metrics["false_positive"] == metrics["false_negative"] == 0
+    assert metrics["false_alarms"]["negative_seconds"] == pytest.approx(1.6)
 
 
 def scores(*rows: tuple[str, float]) -> WindowScores:

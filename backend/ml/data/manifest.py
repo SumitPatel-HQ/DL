@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from ml.features import LABELS, read_wav
+from ml.vocabulary import EXPANDED_DATASET_VERSION, NEW_KEYWORDS, keywords_for, validate_labels
 
 SPLITS = ("train", "validation", "test")
 SPLIT_VERSION = "speaker-sha256-80-10-10-noise-source-round-robin-v1"
@@ -129,6 +130,7 @@ def build_manifest(
     max_per_class: int = 1000,
     dataset_version: str = DATASET_VERSION_V1,
     split_version: str = SPLIT_VERSION,
+    labels: tuple[str, ...] = LABELS,
 ) -> Manifest:
     """Select a deterministic, capped subset after assigning speakers to splits.
 
@@ -137,8 +139,15 @@ def build_manifest(
     never share a parent recording across splits. Noise IDs are source IDs, not
     claims that a human speaker has been identified.
     """
-    if max_per_class < 1 or set(sources) != {"speech", "noise"}:
+    keywords = keywords_for(labels)
+    new_words = set(keywords) - set(LABELS[:-2])
+    if max_per_class < 1 or set(sources) != {"speech", "noise", *new_words}:
         raise ValueError("Positive class cap and speech/noise provenance required")
+    if new_words:
+        if dataset_version == DATASET_VERSION_V1:
+            dataset_version = EXPANDED_DATASET_VERSION
+        if dataset_version == DATASET_VERSION_V2:
+            raise ValueError("Expanded vocabulary requires a bumped dataset version")
     grouped: dict[tuple[str, str], list[Example]] = defaultdict(list)
     for path in sorted(root.glob("*/*.wav")):
         word = path.parent.name
@@ -149,7 +158,7 @@ def build_manifest(
             raise ValueError(f"Missing Speech Commands speaker ID: {path.name}")
         speaker = match[1]
         split = speaker_split(speaker)
-        label = word if word in LABELS[:6] else "unknown"
+        label = word if word in keywords else "unknown"
         relative = path.relative_to(root).as_posix()
         # Decode only selected clips below; inventory creation stays bounded.
         grouped[split, label].append(
@@ -158,7 +167,7 @@ def build_manifest(
                 label,
                 word,
                 speaker,
-                "speech",
+                word if word in new_words else "speech",
                 f"speaker:{speaker}",
                 split,
                 "",
@@ -173,7 +182,7 @@ def build_manifest(
             raise ValueError(
                 f"Unknown needs at least three unrelated words in {split}; mini-8 is insufficient"
             )
-        for label in LABELS[:-1]:
+        for label in labels[:-1]:
             candidates = grouped[split, label]
             # Round-robin Unknown word types so alphabetical order cannot remove diversity.
             words: dict[str, list[Example]] = defaultdict(list)
@@ -224,7 +233,7 @@ def build_manifest(
     result = Manifest(
         dataset_version,
         split_version,
-        LABELS,
+        labels,
         sources,
         tuple(sorted(selected, key=lambda e: (e.split, e.label, e.path, e.start_s))),
     )
@@ -233,14 +242,25 @@ def build_manifest(
 
 
 def validate_manifest(manifest: Manifest, root: Path, *, verify_audio: bool = False) -> None:
-    if manifest.labels != LABELS or not manifest.dataset_version or not manifest.split_version:
+    validate_labels(manifest.labels)
+    if not manifest.dataset_version or not manifest.split_version:
         raise ValueError("Incompatible labels or missing dataset/split version")
+    if manifest.labels != LABELS and manifest.dataset_version in (
+        DATASET_VERSION_V1,
+        DATASET_VERSION_V2,
+    ):
+        raise ValueError("Expanded vocabulary requires a bumped dataset version")
     memberships: dict[tuple[str, str], str] = {}
     identities: set[tuple[str, float, float]] = set()
     verified: dict[str, float] = {}
     for example in manifest.examples:
-        if example.split not in SPLITS or example.label not in LABELS:
+        if example.split not in SPLITS or example.label not in manifest.labels:
             raise ValueError("Invalid split or class")
+        if example.label == "unknown" and example.original_word in keywords_for(manifest.labels):
+            raise ValueError("Unknown must exclude trained Keywords")
+        if manifest.labels != LABELS and example.label in NEW_KEYWORDS:
+            if example.source_id != example.label or example.original_word != example.label:
+                raise ValueError("New Keywords require word-specific source provenance")
         if example.source_id not in manifest.sources or not all(
             (example.speaker_id, example.source_group, example.sha256)
         ):
@@ -275,7 +295,7 @@ def validate_manifest(manifest: Manifest, root: Path, *, verify_audio: bool = Fa
                 raise ValueError("Interval exceeds audio duration")
     for split in SPLITS:
         rows = [e for e in manifest.examples if e.split == split]
-        if {e.label for e in rows} != set(LABELS):
+        if {e.label for e in rows} != set(manifest.labels):
             raise ValueError(f"Missing classes in {split}")
         if len({e.original_word for e in rows if e.label == "unknown"}) < 3:
             raise ValueError(f"Unknown diversity missing in {split}")

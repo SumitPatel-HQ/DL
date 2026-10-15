@@ -32,6 +32,7 @@ from ml.metrics import event_scores, false_alarms_per_hour, match_events, span_c
 from ml.runtime import code_revision, peak_rss_bytes
 from ml.spotting import KEYWORDS, Detection, DetectorConfig, WindowScores, detect, score_windows
 from ml.temporal import LoadedTemporal
+from ml.vocabulary import keywords_for
 
 DETECTOR_FORMAT = "kws-detector-v1"
 TOLERANCE_S = 0.5
@@ -131,10 +132,13 @@ def region_label(references: tuple[Reference, ...], time_s: float) -> str:
 
 
 def score_recording(
-    references: tuple[Reference, ...], detections: list[Detection], tolerance_s: float
+    references: tuple[Reference, ...],
+    detections: list[Detection],
+    tolerance_s: float,
+    vocabulary: tuple[str, ...] = KEYWORDS,
 ) -> dict[str, Any]:
     """Match Detections to Keyword references; count false alarms inside negative spans."""
-    keywords = [r for r in references if r.label in KEYWORDS]
+    keywords = [r for r in references if r.label in vocabulary]
     pairs = match_events(
         [(r.label, r.center_s) for r in keywords],
         [(d.keyword, d.center_s) for d in detections],
@@ -158,10 +162,12 @@ def score_recording(
     }
 
 
-def summarize(results: list[dict[str, Any]]) -> dict[str, Any]:
+def summarize(
+    results: list[dict[str, Any]], vocabulary: tuple[str, ...] = KEYWORDS
+) -> dict[str, Any]:
     """Pool per-Recording matches into event metrics and false alarms/hour."""
     per_keyword = {}
-    for keyword in KEYWORDS:
+    for keyword in vocabulary:
         per_keyword[keyword] = event_scores(
             sum(1 for r in results for ref, _ in r["true_positive"] if ref.label == keyword),
             sum(1 for r in results for d, _ in r["false_positive"] if d.keyword == keyword),
@@ -208,16 +214,20 @@ def evaluate_scores(
     scores: dict[str, WindowScores],
     config: DetectorConfig,
     tolerance_s: float,
+    labels: tuple[str, ...] = LABELS,
 ) -> tuple[dict[str, Any], dict[str, list[Detection]], list[dict[str, Any]]]:
+    vocabulary = keywords_for(labels)
     detections = {
-        recording.recording_id: detect(scores[recording.recording_id], config)
+        recording.recording_id: detect(scores[recording.recording_id], config, vocabulary, labels)
         for recording in data.recordings
     }
     results = [
-        score_recording(recording.references, detections[recording.recording_id], tolerance_s)
+        score_recording(
+            recording.references, detections[recording.recording_id], tolerance_s, vocabulary
+        )
         for recording in data.recordings
     ]
-    return summarize(results), detections, results
+    return summarize(results, vocabulary), detections, results
 
 
 def all_scores(
@@ -239,7 +249,7 @@ def tune(loaded: LoadedModel, data: ContinuousSplit) -> dict[str, Any]:
             GRID["threshold"], GRID["min_consecutive"]
         ):
             config = DetectorConfig(stride_s, threshold, min_consecutive, SUPPRESSION_S)
-            summary, _, _ = evaluate_scores(data, scores, config, TOLERANCE_S)
+            summary, _, _ = evaluate_scores(data, scores, config, TOLERANCE_S, loaded.labels)
             candidates.append((config, summary))
     candidates.sort(
         key=lambda item: (
@@ -293,7 +303,7 @@ def dataset_info(data: ContinuousSplit) -> dict[str, Any]:
     }
 
 
-def composition(data: ContinuousSplit) -> dict[str, Any]:
+def composition(data: ContinuousSplit, vocabulary: tuple[str, ...] = KEYWORDS) -> dict[str, Any]:
     references = [ref for r in data.recordings for ref in r.references]
     seconds: defaultdict[str, float] = defaultdict(float)
     for ref in references:
@@ -304,7 +314,7 @@ def composition(data: ContinuousSplit) -> dict[str, Any]:
         "duration_s": total,
         "speaker_ids": sorted({s for r in data.recordings for s in r.speaker_ids}),
         "keyword_events": dict(
-            Counter(ref.label for ref in references if ref.label in KEYWORDS and not ref.ignored)
+            Counter(ref.label for ref in references if ref.label in vocabulary and not ref.ignored)
         ),
         "ignored_keyword_events": sum(1 for ref in references if ref.ignored),
         "annotated_seconds": {label: seconds[label] for label in sorted(seconds)},
@@ -313,13 +323,15 @@ def composition(data: ContinuousSplit) -> dict[str, Any]:
     }
 
 
-def nearest_window(scores: WindowScores, time_s: float) -> dict[str, Any]:
+def nearest_window(
+    scores: WindowScores, time_s: float, labels: tuple[str, ...] = LABELS
+) -> dict[str, Any]:
     """Top class of the window centered closest to a time, for error review."""
     i = int(np.abs(scores.starts_s + 0.5 - time_s).argmin())
     probabilities = scores.probabilities[i]
     return {
         "window_start_s": float(scores.starts_s[i]),
-        "top_label": LABELS[int(probabilities.argmax())],
+        "top_label": labels[int(probabilities.argmax())],
         "top_score": float(probabilities.max()),
     }
 
@@ -438,10 +450,12 @@ def run(
     check_frozen(detector, loaded, data)
     config = DetectorConfig(**detector["config"])
     scores, scoring_seconds = all_scores(loaded, data, config.stride_s)
-    summary, detections, results = evaluate_scores(data, scores, config, detector["tolerance_s"])
-    review = error_review(data, scores, results)
+    summary, detections, results = evaluate_scores(
+        data, scores, config, detector["tolerance_s"], loaded.labels
+    )
+    review = error_review(data, scores, results, lambda s, t: nearest_window(s, t, loaded.labels))
     examples = write_examples(data, review, examples_dir, examples_per_kind) if examples_dir else []
-    info = composition(data)
+    info = composition(data, keywords_for(loaded.labels))
     experiment = loaded.metadata["experiment_id"]
     suffix = f"-{condition}" if condition else ""
     effective_condition = condition or "clean"
@@ -541,6 +555,8 @@ def main() -> None:
         args.root / "recordings.json", args.root / "events.csv", args.root, args.isolated_manifest
     )
     loaded = load_checkpoint(args.checkpoint)
+    if load_manifest(args.isolated_manifest).labels != loaded.labels:
+        raise ValueError("Continuous annotations and checkpoint class order disagree")
     if args.command == "tune":
         detector = tune(loaded, load_split(args.root, "validation"))
         write_json(args.output, detector)

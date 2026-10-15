@@ -7,6 +7,7 @@ import pytest
 import torch
 
 from ml.checkpoint import load_checkpoint
+from ml.data.manifest import Source
 from ml.data.noise import mix_noise
 from ml.evaluate import compare, compare_noise, evaluate, silence_recall
 from ml.features import LABELS
@@ -113,6 +114,88 @@ def test_evaluation_is_reproducible_and_reports_every_class(
         compare([first, validation])
     with pytest.raises(ValueError, match="held-out"):
         evaluate(checkpoint, cache, "train", latency_runs=2)
+
+
+def test_expanded_vocabulary_trains_reloads_and_evaluates_with_its_own_class_order(
+    corpus: Path, sources: dict[str, Source], config: Path, tmp_path: Path
+) -> None:
+    from conftest import write_wav
+
+    from ml.data.manifest import build_manifest, save_manifest, speaker_split
+    from ml.data.prepare import prepare_cache
+
+    labels = (*LABELS[:-2], "next", "pause", "urgent", "unknown", "silence")
+    for split in ("train", "validation", "test"):
+        speaker = next(f"s{i}" for i in range(1000) if speaker_split(f"s{i}") == split)
+        for word in ("next", "pause", "urgent"):
+            write_wav(corpus / word / f"{speaker}_nohash_0.wav")
+    manifest_path = tmp_path / "expanded.json"
+    save_manifest(
+        build_manifest(
+            corpus,
+            {**sources, **dict.fromkeys(("next", "pause", "urgent"), sources["speech"])},
+            labels=labels,
+            max_per_class=1,
+        ),
+        manifest_path,
+    )
+    features = tmp_path / "expanded-features"
+    prepare_cache(manifest_path, corpus, features)
+    summary = train(config, features, tmp_path / "expanded-model")
+    checkpoint = tmp_path / "expanded-model" / "model.pt"
+    loaded = load_checkpoint(checkpoint)
+    assert loaded.labels == labels
+    assert summary["labels"] == list(labels)
+    assert loaded.probabilities(np.zeros((1, 98, 40), dtype=np.float32)).shape == (1, 11)
+    run = evaluate(checkpoint, features, "test", latency_runs=1)
+    assert run["labels"] == list(labels)
+    assert set(run["metrics"]["per_class"]) == set(labels)
+    assert np.array(run["metrics"]["confusion_matrix"]["values"]).shape == (11, 11)
+    assert run["dataset"]["dataset_version"] == "speech-commands-v0.02-p2-vocab-v1"
+
+    # Continuous evaluation must count all nine Keywords, with the frozen protocol.
+    from ml.evaluate_continuous import ContinuousSplit, Reference, SplitRecording
+    from ml.evaluate_continuous import run as run_continuous
+    from ml.spotting import DetectorConfig
+
+    data = ContinuousSplit(
+        "expanded-continuous-fixture-v1",
+        "speakers-v1",
+        "test",
+        "fixture-only",
+        (
+            SplitRecording(
+                "test",
+                "b" * 64,
+                12.0,
+                ("held-out",),
+                (
+                    *(Reference(word, i + 0.1, i + 0.4) for i, word in enumerate(labels[:-2])),
+                    Reference("unknown", 9.0, 10.0),
+                    Reference("silence", 10.0, 12.0),
+                ),
+                np.zeros(12 * 16000, dtype=np.float32),
+            ),
+        ),
+    )
+    detector = {
+        "format": "kws-detector-v1",
+        "checkpoint": {"sha256": loaded.sha256},
+        "config": DetectorConfig().to_dict(),
+        "tolerance_s": 0.5,
+        "created_at": "2026-10-16T00:00:00+00:00",
+        "tuned_on": {
+            "split": "validation",
+            "dataset_version": data.dataset_version,
+            "split_version": data.split_version,
+            "recordings": {"validation": "c" * 64},
+        },
+    }
+    continuous = run_continuous(loaded, data, detector)
+    assert set(continuous["metrics"]["per_keyword"]) == set(labels[:-2])
+    assert set(continuous["dataset"]["composition"]["keyword_events"]) == set(labels[:-2])
+    metrics = continuous["metrics"]
+    assert metrics["true_positive"] + metrics["false_negative"] == 9
 
 
 def noisy_cache(cache: Path) -> None:

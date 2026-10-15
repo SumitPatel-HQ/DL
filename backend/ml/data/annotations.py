@@ -10,6 +10,7 @@ from pathlib import Path
 
 from ml.data.manifest import Source, file_sha256, load_manifest, local_path
 from ml.features import LABELS, read_wav
+from ml.vocabulary import validate_labels
 
 
 @dataclass(frozen=True)
@@ -58,7 +59,9 @@ def validate_annotations(
     isolated_speakers: set[str] | None = None,
     isolated_sources: set[str] | None = None,
     isolated_hashes: set[str] | None = None,
+    labels: tuple[str, ...] = LABELS,
 ) -> float:
+    validate_labels(labels)
     by_id = {r.recording_id: r for r in recordings}
     if len(by_id) != len(recordings):
         raise ValueError("Duplicate recording ID")
@@ -107,7 +110,7 @@ def validate_annotations(
             membership[key] = recording.split
     grouped: dict[str, list[Event]] = defaultdict(list)
     for event in events:
-        if event.recording_id not in by_id or event.keyword not in LABELS:
+        if event.recording_id not in by_id or event.keyword not in labels:
             raise ValueError("Unknown recording ID or unsupported event keyword")
         if not 0 <= event.start_s < event.end_s <= by_id[event.recording_id].duration_s:
             raise ValueError("Event interval must be finite, positive and inside recording")
@@ -119,8 +122,8 @@ def validate_annotations(
         if any(a.end_s > b.start_s for a, b in zip(rows, rows[1:], strict=False)):
             raise ValueError("Annotations must not overlap")
     for split in ("validation", "test"):
-        labels = {e.keyword for e in events if by_id[e.recording_id].split == split}
-        if labels != set(LABELS):
+        present = {e.keyword for e in events if by_id[e.recording_id].split == split}
+        if present != set(labels):
             raise ValueError(f"{split} requires Keywords, hard negatives and Silence/noise")
     return total
 
@@ -144,6 +147,7 @@ def validate_dataset(
         isolated_speakers={e.speaker_id for e in isolated.examples},
         isolated_sources={e.source_group for e in isolated.examples},
         isolated_hashes={e.sha256 for e in isolated.examples},
+        labels=isolated.labels,
     )
     for recording in recordings:
         if recording.source_id not in sources:

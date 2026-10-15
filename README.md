@@ -142,6 +142,11 @@ The P1-04 temporal BiLSTM prototype (experimental, event-F1 0.057 on test, targe
 in [temporal-v1](docs/evaluations/temporal-v1/README.md) and
 [ADR-0007](docs/adr/0007-temporal-prototype-keep-experimental.md).
 
+P2-01 [vocabulary expansion](docs/data/vocabulary-expansion.md) supports offline
+eleven-class dataset preparation, training and evaluation. New-word recordings
+and reviewed runs are still missing, so `next`, `pause`, and `urgent` remain gated.
+The app continues to serve the six Keywords from E02.
+
 ## Checks and reproducibility
 
 The [recording API guide](docs/backend-api.md) documents uploads, analysis jobs,

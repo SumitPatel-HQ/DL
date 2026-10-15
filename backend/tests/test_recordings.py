@@ -19,7 +19,7 @@ from starlette.types import Message
 from app.main import create_app
 from app.settings import Settings
 from ml.checkpoint import save_checkpoint
-from ml.features import Normalization
+from ml.features import LABELS, Normalization
 from ml.networks import LstmClassifier
 
 
@@ -31,8 +31,10 @@ def wav_bytes(seconds: float = 2) -> bytes:
     return output.getvalue()
 
 
-def configured(tmp_path: Path, label: int = 4, **overrides: object) -> Settings:
-    model = LstmClassifier(8, 1)
+def configured(
+    tmp_path: Path, label: int = 4, labels: tuple[str, ...] = LABELS, **overrides: object
+) -> Settings:
+    model = LstmClassifier(8, 1, n_classes=len(labels))
     with torch.no_grad():
         for parameter in model.parameters():
             parameter.zero_()
@@ -41,8 +43,9 @@ def configured(tmp_path: Path, label: int = 4, **overrides: object) -> Settings:
     digest = save_checkpoint(
         checkpoint,
         model,
-        Normalization((0.0,) * 40, (1.0,) * 40, 1, "fixture", "train", "a" * 64),
+        Normalization((0.0,) * 40, (1.0,) * 40, 1, "fixture", "train", "a" * 64, labels),
         {
+            "labels": list(labels),
             "experiment_id": "fixture",
             "network": {
                 "type": "lstm",
@@ -88,6 +91,39 @@ def completed(client: TestClient, recording: str) -> dict:
 def open_client(settings: Settings) -> Iterator[TestClient]:
     with TestClient(create_app(settings), base_url="http://127.0.0.1") as client:
         yield client
+
+
+def test_unreviewed_vocabulary_cannot_be_served_or_trigger_actions(tmp_path: Path) -> None:
+    expanded = (*LABELS[:-2], "next", "pause", "urgent", "unknown", "silence")
+    with open_client(configured(tmp_path, labels=expanded)) as client:
+        model = client.get("/api/health").json()["model"]
+        assert model["status"] == "unavailable"
+        assert model["code"] == "vocabulary_not_reviewed"
+        assert "review" in model["setup_action"]
+        active = client.get("/api/models/active")
+        assert active.status_code == 503
+        assert active.json()["error"]["code"] == "vocabulary_not_reviewed"
+        mappings = client.get("/api/actions").json()["actions"]
+        assert not {"next", "pause", "urgent"} & {m["keyword"] for m in mappings}
+        recording = client.post("/api/recordings", files={"file": ("x.wav", wav_bytes())}).json()
+        result = client.post(
+            f"/api/recordings/{recording['id']}/analyze", json={"keywords": ["next"]}
+        )
+        assert result.status_code == 422
+        assert result.json()["error"]["code"] == "unsupported_keyword"
+        with client.websocket_connect("ws://127.0.0.1/api/live") as socket:
+            socket.send_json(
+                {
+                    "type": "start",
+                    "version": 1,
+                    "sample_rate": 16000,
+                    "channels": 1,
+                    "encoding": "pcm_s16le",
+                }
+            )
+            message = socket.receive_json()
+            assert message["type"] == "error"
+            assert message["code"] == "vocabulary_not_reviewed"
 
 
 def test_upload_analyze_playback_persist_and_delete(tmp_path: Path) -> None:

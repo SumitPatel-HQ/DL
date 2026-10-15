@@ -69,21 +69,26 @@ class ExperimentConfig:
 
 def dataset_provenance(*splits: CachedSplit) -> dict[str, str]:
     values = [{key: split.metadata[key] for key in PROVENANCE_KEYS} for split in splits]
-    if any(value != values[0] for value in values):
+    if any(value != values[0] for value in values) or any(
+        split.metadata["labels"] != splits[0].metadata["labels"] for split in splits
+    ):
         raise ValueError("Splits come from different manifests or normalization")
     return values[0]
 
 
 def validation_pass(
-    model: LstmClassifier, features: torch.Tensor, labels: torch.Tensor
+    model: LstmClassifier,
+    features: torch.Tensor,
+    labels: torch.Tensor,
+    class_names: tuple[str, ...] = LABELS,
 ) -> tuple[float, dict[str, Any]]:
     model.eval()
     with torch.inference_mode():
         logits = model(features)
         loss = float(nn.functional.cross_entropy(logits, labels))
     detected = logits.argmax(dim=1).numpy().astype(np.int64)
-    matrix = confusion_matrix(labels.numpy().astype(np.int64), detected, len(LABELS))
-    return loss, classification_report(matrix, LABELS)
+    matrix = confusion_matrix(labels.numpy().astype(np.int64), detected, len(class_names))
+    return loss, classification_report(matrix, class_names)
 
 
 def train(config_path: Path, features_dir: Path, output_dir: Path) -> dict[str, Any]:
@@ -92,6 +97,7 @@ def train(config_path: Path, features_dir: Path, output_dir: Path) -> dict[str, 
     seed_everything(config.seed, config.num_threads)
     train_split, validation_split = (load_cache(features_dir, s) for s in ("train", "validation"))
     dataset = dataset_provenance(train_split, validation_split)
+    labels = tuple(train_split.metadata["labels"])
     normalization = Normalization.load(features_dir / "normalization.json")
     if normalization.manifest_sha256 != dataset["manifest_sha256"]:
         raise ValueError("Normalization was fitted on a different manifest")
@@ -99,7 +105,9 @@ def train(config_path: Path, features_dir: Path, output_dir: Path) -> dict[str, 
     x_train, y_train = torch.from_numpy(train_split.features), torch.from_numpy(train_split.labels)
     x_val = torch.from_numpy(validation_split.features)
     y_val = torch.from_numpy(validation_split.labels)
-    model = LstmClassifier(config.hidden_size, config.num_layers, config.dropout)
+    model = LstmClassifier(
+        config.hidden_size, config.num_layers, config.dropout, n_classes=len(labels)
+    )
     optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
     order_generator = torch.Generator().manual_seed(config.seed)
 
@@ -122,7 +130,7 @@ def train(config_path: Path, features_dir: Path, output_dir: Path) -> dict[str, 
             loss_sum += loss.item() * len(batch)
             correct += int((logits.argmax(dim=1) == y_train[batch]).sum())
         epoch_seconds = time.perf_counter() - epoch_started
-        validation_loss, report = validation_pass(model, x_val, y_val)
+        validation_loss, report = validation_pass(model, x_val, y_val, labels)
         history.append(
             {
                 "epoch": epoch,
@@ -145,6 +153,7 @@ def train(config_path: Path, features_dir: Path, output_dir: Path) -> dict[str, 
     model.load_state_dict(best_state)
 
     metadata: dict[str, Any] = {
+        "labels": list(labels),
         "experiment_id": config.experiment_id,
         "created_at": datetime.now(UTC).isoformat(),
         "code_revision": code_revision(),

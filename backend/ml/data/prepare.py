@@ -24,6 +24,7 @@ from ml.data.manifest import (
 )
 from ml.features import FEATURE_CONFIG, LABELS, FeaturePipeline, Normalization, read_wav
 from ml.features.pipeline import SAMPLE_RATE, Audio
+from ml.vocabulary import EXPANDED_LABELS, validate_labels
 
 
 def iter_segments(manifest: Manifest, root: Path, split: str) -> Iterator[tuple[Example, Audio]]:
@@ -58,13 +59,15 @@ def write_split_cache(
     metadata: dict[str, Any],
 ) -> None:
     """Write one cached split; metadata carries versions, hashes and any condition."""
+    labels = tuple(metadata.get("labels", LABELS))
+    validate_labels(labels)
     np.savez_compressed(
         path,
         features=np.stack([features for _, features in rows]),
-        labels=np.array([LABELS.index(e.label) for e, _ in rows], dtype=np.int64),
+        labels=np.array([labels.index(e.label) for e, _ in rows], dtype=np.int64),
         examples=np.array([json.dumps(as_example(e), sort_keys=True) for e, _ in rows]),
         metadata=np.array(
-            json.dumps({"features": FEATURE_CONFIG, "labels": LABELS, **metadata}, sort_keys=True)
+            json.dumps({"features": FEATURE_CONFIG, "labels": labels, **metadata}, sort_keys=True)
         ),
     )
 
@@ -80,6 +83,7 @@ def prepare_cache(manifest_path: Path, root: Path, output: Path) -> Normalizatio
         dataset_version=manifest.dataset_version,
         split_version=manifest.split_version,
         manifest_sha256=digest,
+        labels=manifest.labels,
     )
     output.mkdir(parents=True, exist_ok=True)
     stats.save(output / "normalization.json")
@@ -90,6 +94,7 @@ def prepare_cache(manifest_path: Path, root: Path, output: Path) -> Normalizatio
             list(iter_features(manifest, root, split, pipeline)),
             {
                 "split": split,
+                "labels": manifest.labels,
                 "dataset_version": manifest.dataset_version,
                 "split_version": manifest.split_version,
                 "manifest_sha256": digest,
@@ -116,16 +121,19 @@ def load_cache(features_dir: Path, split: str, cache_name: str | None = None) ->
         features, labels = cached["features"], cached["labels"]
         metadata: dict[str, Any] = json.loads(str(cached["metadata"]))
         examples = cached["examples"] if "examples" in cached else None
-    if (
-        metadata["features"] != FEATURE_CONFIG
-        or metadata["labels"] != list(LABELS)
-        or metadata["split"] != split
-    ):
+    if metadata["features"] != FEATURE_CONFIG or metadata["split"] != split:
         raise ValueError(f"Incompatible feature metadata, class order or split in {split}")
+    validate_labels(tuple(metadata["labels"]))
+    if tuple(metadata["labels"]) != Normalization.load(features_dir / "normalization.json").labels:
+        raise ValueError("Cache and normalization have different class orders")
     if metadata["normalization_sha256"] != file_sha256(features_dir / "normalization.json"):
         raise ValueError("Cache was built with different normalization; regenerate it")
     if features.ndim != 3 or features.shape[2:] != (40,) or len(features) != len(labels):
         raise ValueError("Expected [examples, frames, 40] features aligned with labels")
+    if not np.issubdtype(labels.dtype, np.integer) or np.any(
+        (labels < 0) | (labels >= len(metadata["labels"]))
+    ):
+        raise ValueError("Cache contains invalid class indices")
     return CachedSplit(features.astype(np.float32), labels.astype(np.int64), metadata, examples)
 
 
@@ -147,6 +155,7 @@ def main() -> None:
     manifest_parser.add_argument("--sources", type=Path, required=True)
     manifest_parser.add_argument("--output", type=Path, required=True)
     manifest_parser.add_argument("--max-per-class", type=int, default=1000)
+    manifest_parser.add_argument("--vocabulary", choices=("p0", "expanded"), default="p0")
     cache_parser = sub.add_parser("cache")
     cache_parser.add_argument("--manifest", type=Path, required=True)
     cache_parser.add_argument("--root", type=Path, required=True)
@@ -157,7 +166,12 @@ def main() -> None:
             key: Source(**value)
             for key, value in json.loads(args.sources.read_text(encoding="utf-8")).items()
         }
-        manifest = build_manifest(args.root, sources, max_per_class=args.max_per_class)
+        manifest = build_manifest(
+            args.root,
+            sources,
+            max_per_class=args.max_per_class,
+            labels=EXPANDED_LABELS if args.vocabulary == "expanded" else LABELS,
+        )
         args.output.parent.mkdir(parents=True, exist_ok=True)
         save_manifest(manifest, args.output)
         print(f"Manifest: {len(manifest.examples)} clips, {file_sha256(args.output)}")

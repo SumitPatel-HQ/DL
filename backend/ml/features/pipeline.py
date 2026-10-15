@@ -17,8 +17,10 @@ from numpy.typing import NDArray
 from scipy.fft import dct
 from scipy.signal import resample_poly
 
+from ml.vocabulary import LABELS as LABELS
+from ml.vocabulary import validate_labels
+
 Audio = NDArray[np.float32]
-LABELS = ("left", "right", "up", "down", "go", "stop", "unknown", "silence")
 SAMPLE_RATE = 16000
 FRAME_MS, HOP_MS = 25, 10
 FRAME_SAMPLES, HOP_SAMPLES = SAMPLE_RATE * FRAME_MS // 1000, SAMPLE_RATE * HOP_MS // 1000
@@ -103,8 +105,10 @@ class Normalization:
     dataset_version: str
     split_version: str
     manifest_sha256: str
+    labels: tuple[str, ...] = LABELS
 
     def __post_init__(self) -> None:
+        validate_labels(self.labels)
         if len(self.mean) != N_MFCC or len(self.std) != N_MFCC:
             raise ValueError("Normalization requires 40 coefficients")
         if not np.isfinite([self.mean, self.std]).all() or min(self.std) < STD_FLOOR:
@@ -119,7 +123,7 @@ class Normalization:
             json.dumps(
                 {
                     "features": FEATURE_CONFIG,
-                    "labels": LABELS,
+                    "labels": self.labels,
                     "fit_split": "train",
                     **asdict(self),
                 },
@@ -132,13 +136,10 @@ class Normalization:
     @classmethod
     def load(cls, path: Path) -> "Normalization":
         value = json.loads(path.read_text(encoding="utf-8"))
-        if (
-            value.pop("features") != FEATURE_CONFIG
-            or value.pop("labels") != list(LABELS)
-            or value.pop("fit_split") != "train"
-        ):
+        if value.pop("features") != FEATURE_CONFIG or value.pop("fit_split") != "train":
             raise ValueError("Incompatible feature metadata or class order")
         value["mean"], value["std"] = tuple(value["mean"]), tuple(value["std"])
+        value["labels"] = tuple(value["labels"])
         return cls(**value)
 
 
@@ -196,6 +197,7 @@ class FeaturePipeline:
         dataset_version: str,
         split_version: str,
         manifest_sha256: str,
+        labels: tuple[str, ...] = LABELS,
     ) -> Normalization:
         if split != "train":
             raise ValueError("Normalization may only be fitted on train")
@@ -222,4 +224,5 @@ class FeaturePipeline:
             dataset_version,
             split_version,
             manifest_sha256,
+            labels,
         )
