@@ -517,6 +517,16 @@ def test_compare_noise_isolated_pair_shares_checkpoint_and_names_sources(
         assert body["split_version"] == "speaker-sha256-80-10-10-noise-sources-v2"
         assert body["split"] == "test"
         assert body["noise_sources"] == ["exercise_bike", "violet_noise", "white_noise"]
+        assert body["comparison_id"] == (
+            "e02-isolated-test-clean-e47e49f57e81..e02-isolated-test-noisy-e47e49f57e81"
+        )
+        assert body["noise_sources_by_split"] == {
+            "train": ["blue_noise", "doing_the_dishes", "pink_noise"],
+            "validation": ["brown_noise", "dude_miaowing", "running_tap"],
+            "test": ["exercise_bike", "violet_noise", "white_noise"],
+        }
+        trained_on = body["runs"][1]["provenance"]["checkpoint_dataset_version"]
+        assert trained_on == "speech-commands-v0.02-p0-subset-v1"
         clean, noisy = body["runs"]
         assert [run["id"] for run in body["runs"]] == [
             "e02-isolated-test-clean-e47e49f57e81",

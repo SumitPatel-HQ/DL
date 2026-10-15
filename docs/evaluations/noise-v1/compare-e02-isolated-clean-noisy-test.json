@@ -10,6 +10,23 @@
     "violet_noise",
     "white_noise"
   ],
+  "noise_sources_by_split": {
+    "test": [
+      "exercise_bike",
+      "violet_noise",
+      "white_noise"
+    ],
+    "train": [
+      "blue_noise",
+      "doing_the_dishes",
+      "pink_noise"
+    ],
+    "validation": [
+      "brown_noise",
+      "dude_miaowing",
+      "running_tap"
+    ]
+  },
   "runs": [
     {
       "run_id": "e02-isolated-test-clean-e47e49f57e81",

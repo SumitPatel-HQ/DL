@@ -1,9 +1,9 @@
 {
   "run_id": "e02-continuous-test-clean-e47e49f57e81",
   "kind": "continuous",
-  "created_at": "2026-10-15T21:24:03.145027+00:00",
+  "created_at": "2026-10-15T21:37:36.588479+00:00",
   "code_revision": {
-    "commit": "4de5e3ca2ffdb1990113379eed75c71b28635875",
+    "commit": "8118525ed8cc497d585c019c8e9228a7efca1aa4",
     "dirty": false
   },
   "experiment_id": "E02",
@@ -44,6 +44,23 @@
     "condition": "clean",
     "noise_sources": [],
     "snr_db": null,
+    "noise_sources_by_split": {
+      "train": [
+        "blue_noise",
+        "doing_the_dishes",
+        "pink_noise"
+      ],
+      "validation": [
+        "brown_noise",
+        "dude_miaowing",
+        "running_tap"
+      ],
+      "test": [
+        "exercise_bike",
+        "violet_noise",
+        "white_noise"
+      ]
+    },
     "composition": {
       "recordings": 1,
       "duration_s": 600.0,
@@ -8468,8 +8485,8 @@
       "os": "Windows-11-10.0.26300-SP0",
       "cpu": "AMD64 Family 23 Model 104 Stepping 1, AuthenticAMD"
     },
-    "scoring_seconds": 3.4340858000068692,
-    "real_time_factor": 0.005723476333344782,
-    "peak_rss_bytes": 483115008
+    "scoring_seconds": 3.591674499999499,
+    "real_time_factor": 0.005986124166665832,
+    "peak_rss_bytes": 484610048
   }
 }

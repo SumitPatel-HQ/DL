@@ -8,12 +8,12 @@ files are summaries; the importer skips them and the API reads the stored runs.
 | Kind | Clean | Noisy |
 | --- | --- | --- |
 | Isolated, test | macro-F1 0.727, accuracy 0.732 | macro-F1 0.188, accuracy 0.269 |
-| Continuous, test | event-F1 0.010, 2216 false alarms/hour | event-F1 0.016, 2229 false alarms/hour |
+| Continuous, test | event-F1 0.010, 2216 false alarms/hour | event-F1 0.011, 2134 false alarms/hour |
 
 The E02 checkpoint is not noise-robust: at 10 dB SNR its isolated macro-F1 falls
 by 0.54 and keyword recall collapses. The continuous Detector was already near
-zero on clean audio, so its noisy event-F1 (3 hits instead of 2) is not an
-improvement. Both numbers stay experimental under ADR-0006.
+zero on clean audio; noise changes neither its hits (2 of 16) nor its
+false-alarm rate meaningfully. Both numbers stay experimental under ADR-0006.
 
 ## Dataset version `speech-commands-v0.02-p1-noise-v1`
 
@@ -43,7 +43,8 @@ not remixed.
   Silence noise clip at 10 dB SNR (`ml.data.noise.mix_noise`, seed 2026). Silence
   clips are left as they are. Features reuse the E02 normalization.
 - Noisy continuous: the three test-split noise files are concatenated and mixed
-  into every test Recording at 10 dB SNR. Annotations, the frozen detector
+  into every test Recording at 10 dB SNR, starting at a seeded random offset
+  (seed 2026) per Recording. Annotations, the frozen detector
   (`continuous-v1/detector-e02.json`), the ±0.5 s tolerance and the
   duplicate-suppression rule are unchanged. Unlabeled gaps stay out of negative
   exposure in both conditions.
@@ -59,12 +60,17 @@ From `backend/`, with the E02 checkpoint and the P0 caches in place:
 uv run --locked python -m ml.data.noise_prepare --root ../data/speech_commands_v0.02 --sources ../docs/data/speech-commands-sources.json --output ../data/noise-isolated --normalization ../data/isolated/features/normalization.json
 uv run --locked python -m ml.evaluate run --checkpoint ../artifacts/models/e02/model.pt --features ../data/noise-isolated/features --split test --condition clean --allow-different-dataset --output ../artifacts/evaluations/noise-v1/e02-isolated-test-clean.json
 uv run --locked python -m ml.evaluate run --checkpoint ../artifacts/models/e02/model.pt --features ../data/noise-isolated/features --split test --condition noisy --allow-different-dataset --output ../artifacts/evaluations/noise-v1/e02-isolated-test-noisy.json
-uv run --locked python -m ml.evaluate_continuous run --checkpoint ../artifacts/models/e02/model.pt --root ../data/continuous-ami --isolated-manifest ../data/isolated/manifest.json --detector ../docs/evaluations/continuous-v1/detector-e02.json --split test --condition clean --output ../artifacts/evaluations/noise-v1/e02-continuous-test-clean.json
-uv run --locked python -m ml.evaluate_continuous run --checkpoint ../artifacts/models/e02/model.pt --root ../data/continuous-ami --isolated-manifest ../data/isolated/manifest.json --detector ../docs/evaluations/continuous-v1/detector-e02.json --split test --condition noisy --noise-file ../data/speech_commands_v0.02/_background_noise_/exercise_bike.wav ../data/speech_commands_v0.02/_background_noise_/violet_noise.wav ../data/speech_commands_v0.02/_background_noise_/white_noise.wav --output ../artifacts/evaluations/noise-v1/e02-continuous-test-noisy.json
+uv run --locked python -m ml.evaluate_continuous run --checkpoint ../artifacts/models/e02/model.pt --root ../data/continuous-ami --isolated-manifest ../data/isolated/manifest.json --detector ../docs/evaluations/continuous-v1/detector-e02.json --split test --condition clean --noise-manifest ../data/noise-isolated/manifest.json --output ../artifacts/evaluations/noise-v1/e02-continuous-test-clean.json
+uv run --locked python -m ml.evaluate_continuous run --checkpoint ../artifacts/models/e02/model.pt --root ../data/continuous-ami --isolated-manifest ../data/isolated/manifest.json --detector ../docs/evaluations/continuous-v1/detector-e02.json --split test --condition noisy --noise-manifest ../data/noise-isolated/manifest.json --noise-file ../data/speech_commands_v0.02/_background_noise_/exercise_bike.wav ../data/speech_commands_v0.02/_background_noise_/violet_noise.wav ../data/speech_commands_v0.02/_background_noise_/white_noise.wav --output ../artifacts/evaluations/noise-v1/e02-continuous-test-noisy.json
 uv run --locked python -m ml.evaluate compare-noise --runs ../artifacts/evaluations/noise-v1/e02-isolated-test-clean.json ../artifacts/evaluations/noise-v1/e02-isolated-test-noisy.json --output ../artifacts/evaluations/noise-v1/compare-e02-isolated-clean-noisy-test.json
 ```
 
-`compare-noise` (also available in `ml.evaluate_continuous`) refuses pairs that
+`ml.evaluate compare-noise` (isolated and continuous) refuses pairs that
 differ in checkpoint hash, dataset/split version, kind, or (continuous) detector
 configuration and tolerance. Runs were produced from a clean tree at commit
-`4de5e3c`.
+`8118525`. Each run records the noise sources of all three splits
+(`noise_sources_by_split`). The isolated runs record the dataset version the
+checkpoint trained on (`checkpoint_dataset_version`), because
+`--allow-different-dataset` bypasses the dataset-version check; the normalization
+hash is still checked. The API names a pair with a `comparison_id`
+(`<clean run id>..<noisy run id>`).
