@@ -13,7 +13,7 @@ import platform
 import time
 import wave
 from collections import Counter, defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -23,7 +23,8 @@ import numpy as np
 from ml.checkpoint import LoadedModel, load_checkpoint
 from ml.data.annotations import read_events, validate_dataset
 from ml.data.manifest import file_sha256, local_path
-from ml.evaluate import write_json
+from ml.data.noise import DEFAULT_SNR_DB, mix_noise
+from ml.evaluate import compare_noise, write_json
 from ml.features import LABELS, read_wav
 from ml.features.pipeline import SAMPLE_RATE, Audio
 from ml.metrics import event_scores, false_alarms_per_hour, match_events, span_center
@@ -33,6 +34,7 @@ from ml.spotting import KEYWORDS, Detection, DetectorConfig, WindowScores, detec
 DETECTOR_FORMAT = "kws-detector-v1"
 TOLERANCE_S = 0.5
 EVENT_F1_TARGET = 0.70
+NOISE_SNR_DB = DEFAULT_SNR_DB
 NEGATIVE_LABELS = ("unknown", "silence")
 GRID: dict[str, tuple[Any, ...]] = {
     "stride_s": (0.2, 0.25),
@@ -419,6 +421,10 @@ def run(
     detector: dict[str, Any],
     examples_dir: Path | None = None,
     examples_per_kind: int = 5,
+    *,
+    condition: str | None = None,
+    noise_sources: list[str] | None = None,
+    snr_db: float | None = None,
 ) -> dict[str, Any]:
     check_frozen(detector, loaded, data)
     config = DetectorConfig(**detector["config"])
@@ -428,8 +434,10 @@ def run(
     examples = write_examples(data, review, examples_dir, examples_per_kind) if examples_dir else []
     info = composition(data)
     experiment = loaded.metadata["experiment_id"]
+    suffix = f"-{condition}" if condition else ""
+    effective_condition = condition or "clean"
     return {
-        "run_id": f"{experiment.lower()}-continuous-{data.split}-{loaded.sha256[:12]}",
+        "run_id": f"{experiment.lower()}-continuous-{data.split}{suffix}-{loaded.sha256[:12]}",
         "kind": "continuous",
         "created_at": datetime.now(UTC).isoformat(),
         "code_revision": code_revision(),
@@ -443,7 +451,13 @@ def run(
             "tuned_on": detector["tuned_on"],
             "detector_created_at": detector["created_at"],
         },
-        "dataset": {**dataset_info(data), "composition": info},
+        "dataset": {
+            **dataset_info(data),
+            "condition": effective_condition,
+            "noise_sources": sorted(noise_sources or []),
+            "snr_db": snr_db,
+            "composition": info,
+        },
         "metrics": summary,
         "target": {
             "event_f1": EVENT_F1_TARGET,
@@ -474,6 +488,16 @@ def run(
     }
 
 
+def add_noise(data: ContinuousSplit, noise_files: list[Path], snr_db: float) -> ContinuousSplit:
+    """Mix the concatenated noise files into every Recording; labels and timing are untouched."""
+    noise = np.concatenate([read_wav(path) for path in noise_files])
+    recordings = tuple(
+        replace(recording, audio=mix_noise(recording.audio, noise, snr_db))
+        for recording in data.recordings
+    )
+    return replace(data, recordings=recordings)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -486,8 +510,29 @@ def main() -> None:
     run_parser = sub.choices["run"]
     run_parser.add_argument("--detector", type=Path, required=True)
     run_parser.add_argument("--split", choices=("validation", "test"), default="test")
+    run_parser.add_argument("--condition", choices=("clean", "noisy"), default=None)
+    run_parser.add_argument(
+        "--noise-file",
+        type=Path,
+        nargs="+",
+        help="noise recordings mixed in for --condition noisy; use test-split sources only",
+    )
+    run_parser.add_argument("--snr-db", type=float, default=NOISE_SNR_DB)
     run_parser.add_argument("--examples", type=Path)
+
+    compare_noise_parser = sub.add_parser("compare-noise")
+    compare_noise_parser.add_argument("--runs", type=Path, nargs="+", required=True)
+    compare_noise_parser.add_argument("--output", type=Path, required=True)
+
     args = parser.parse_args()
+    if args.command == "compare-noise":
+        comparison = compare_noise(
+            [json.loads(path.read_text(encoding="utf-8")) for path in args.runs]
+        )
+        write_json(args.output, comparison)
+        print(f"Saved continuous noise comparison: {args.output}")
+        return
+
     validate_dataset(
         args.root / "recordings.json", args.root / "events.csv", args.root, args.isolated_manifest
     )
@@ -505,8 +550,27 @@ def main() -> None:
         )
         print(f"  detector file sha256 {file_sha256(args.output)}")
         return
+
     detector = json.loads(args.detector.read_text(encoding="utf-8"))
-    result = run(loaded, load_split(args.root, args.split), detector, args.examples)
+    split_data = load_split(args.root, args.split)
+    noise_sources: list[str] = []
+    snr_db = None
+    if args.condition == "noisy":
+        if not args.noise_file:
+            parser.error("--condition noisy requires --noise-file")
+        split_data = add_noise(split_data, args.noise_file, args.snr_db)
+        noise_sources = [path.stem for path in args.noise_file]
+        snr_db = args.snr_db
+
+    result = run(
+        loaded,
+        split_data,
+        detector,
+        args.examples,
+        condition=args.condition,
+        noise_sources=noise_sources,
+        snr_db=snr_db,
+    )
     result["detector"]["file_sha256"] = file_sha256(args.detector)
     write_json(args.output, result)
     metrics = result["metrics"]

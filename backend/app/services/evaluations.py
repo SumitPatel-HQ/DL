@@ -59,6 +59,9 @@ class Dataset(Document):
     dataset_version: str = Field(min_length=1)
     split_version: str = Field(min_length=1)
     split: Literal["train", "validation", "test"]
+    condition: Literal["clean", "noisy"] = "clean"
+    noise_sources: list[str] = Field(default_factory=list)
+    snr_db: float | None = None
 
 
 class Target(Document):
@@ -111,6 +114,7 @@ class IsolatedMetrics(Document):
     macro_f1: Score
     per_class: dict[str, ClassMetrics]
     confusion_matrix: ConfusionMatrix
+    silence_recall_by_source: dict[str, Score] = Field(default_factory=dict)
 
 
 class Epoch(Document):
@@ -291,7 +295,7 @@ def provenance(run: EvaluationRun) -> dict[str, Any]:
         role, config_sha256 = "training", run.config_sha256
     else:
         role, config_sha256 = "detector", run.detector.file_sha256
-    return {
+    facts: dict[str, Any] = {
         "checkpoint_sha256": run.checkpoint.sha256,
         "dataset_version": run.dataset.dataset_version,
         "split_version": run.dataset.split_version,
@@ -300,6 +304,11 @@ def provenance(run: EvaluationRun) -> dict[str, Any]:
         "config_sha256": config_sha256,
         "code_revision": run.code_revision.model_dump(),
     }
+    if run.dataset.noise_sources or run.dataset.condition != "clean":
+        facts["condition"] = run.dataset.condition
+        facts["noise_sources"] = run.dataset.noise_sources
+        facts["snr_db"] = run.dataset.snr_db
+    return facts
 
 
 def target(run: EvaluationRun) -> dict[str, Any]:
@@ -410,6 +419,7 @@ class EvaluationService:
                     "labels": run.labels,
                     **metrics.confusion_matrix.model_dump(),
                 },
+                "silence_recall_by_source": metrics.silence_recall_by_source,
             }
             detail["training"] = {
                 **run.training.model_dump(),
@@ -438,11 +448,13 @@ class EvaluationService:
             raise ServiceError("evaluation_not_found", "Evaluation Run does not exist.", 404)
 
     def compare(self, run_a_id: str, run_b_id: str) -> dict[str, Any]:
-        """Side-by-side view over two stored runs of the same kind and dataset/split.
+        """Side-by-side view over two stored runs of the same kind.
 
-        Reads only stored runs; mismatched kinds or dataset/split versions are
-        rejected with an actionable error. Isolated and continuous numbers never
-        share a response: each run keeps its own detail shape from get().
+        Same condition and dataset/split: a model comparison. Different conditions:
+        a noise comparison, which also needs the same checkpoint hash and, for
+        continuous runs, the same detector protocol. Reads only stored runs;
+        mismatches are rejected with an actionable error. Isolated and continuous
+        numbers never share a response: each run keeps its own detail shape from get().
         """
         with self.store.transaction() as db:
             row_a = db.execute(
@@ -468,24 +480,70 @@ class EvaluationService:
                 "share a view. Pick two isolated or two continuous runs.",
                 400,
             )
-        if dataset_key(run_a) != dataset_key(run_b):
-            raise ServiceError(
-                "comparison_dataset_mismatch",
-                "Runs use different datasets or splits "
-                f"({run_a.dataset.dataset_version}/{run_a.dataset.split_version}/"
-                f"{run_a.dataset.split} vs {run_b.dataset.dataset_version}/"
-                f"{run_b.dataset.split_version}/{run_b.dataset.split}). Pick two runs "
-                "with identical dataset version, split version, and split.",
-                400,
-            )
+
+        cond_a = run_a.dataset.condition
+        cond_b = run_b.dataset.condition
+
+        if cond_a != cond_b:
+            # Noise test comparison
+            if run_a.checkpoint.sha256 != run_b.checkpoint.sha256:
+                raise ServiceError(
+                    "comparison_provenance_mismatch",
+                    "Clean and noisy runs must share the checkpoint hash; "
+                    "only the dataset condition may differ.",
+                    400,
+                )
+            if (
+                run_a.dataset.dataset_version != run_b.dataset.dataset_version
+                or run_a.dataset.split_version != run_b.dataset.split_version
+                or run_a.dataset.split != run_b.dataset.split
+            ):
+                raise ServiceError(
+                    "comparison_provenance_mismatch",
+                    "Clean and noisy runs must use the identical dataset version, split "
+                    f"version, and split ({run_a.dataset.dataset_version}/"
+                    f"{run_a.dataset.split_version}/{run_a.dataset.split} vs "
+                    f"{run_b.dataset.dataset_version}/{run_b.dataset.split_version}/"
+                    f"{run_b.dataset.split}); only the dataset condition differs.",
+                    400,
+                )
+            if isinstance(run_a, ContinuousRun) and isinstance(run_b, ContinuousRun):
+                if (
+                    run_a.detector.config != run_b.detector.config
+                    or run_a.detector.tolerance_s != run_b.detector.tolerance_s
+                ):
+                    raise ServiceError(
+                        "comparison_protocol_mismatch",
+                        "Clean and noisy continuous runs must share detector "
+                        "configuration and tolerance.",
+                        400,
+                    )
+            comparison_type = "noise"
+        else:
+            # Model comparison (or rerun check): datasets and split must match identically
+            if dataset_key(run_a) != dataset_key(run_b):
+                raise ServiceError(
+                    "comparison_dataset_mismatch",
+                    "Runs use different datasets or splits "
+                    f"({run_a.dataset.dataset_version}/{run_a.dataset.split_version}/"
+                    f"{run_a.dataset.split} vs {run_b.dataset.dataset_version}/"
+                    f"{run_b.dataset.split_version}/{run_b.dataset.split}). Pick two runs "
+                    "with identical dataset version, split version, and split.",
+                    400,
+                )
+            comparison_type = "model"
+
         detail_a = self.get(run_a_id)
         detail_b = self.get(run_b_id)
+        noise_sources = sorted({*run_a.dataset.noise_sources, *run_b.dataset.noise_sources})
         return {
             "code": "comparison_available",
+            "comparison_type": comparison_type,
             "kind": run_a.kind,
             "dataset_version": run_a.dataset.dataset_version,
             "split_version": run_a.dataset.split_version,
             "split": run_a.dataset.split,
+            "noise_sources": noise_sources,
             "runs": [detail_a, detail_b],
         }
 

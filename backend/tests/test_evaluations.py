@@ -22,6 +22,14 @@ ISOLATED = {
     "e02-isolated-validation-e47e49f57e81",
 }
 CONTINUOUS = {"e02-continuous-test-e47e49f57e81", "e02-continuous-validation-e47e49f57e81"}
+NOISE_ISOLATED = {
+    "e02-isolated-test-clean-e47e49f57e81",
+    "e02-isolated-test-noisy-e47e49f57e81",
+}
+NOISE_CONTINUOUS = {
+    "e02-continuous-test-clean-e47e49f57e81",
+    "e02-continuous-test-noisy-e47e49f57e81",
+}
 
 
 def settings(tmp_path: Path, evaluations: Path = COMMITTED) -> Settings:
@@ -46,13 +54,16 @@ def test_importing_committed_runs_lists_each_with_provenance(tmp_path: Path) -> 
 
         response = client.post("/api/evaluations/import")
         assert response.status_code == 200
-        assert set(response.json()["imported"]) == ISOLATED | CONTINUOUS
+        assert (
+            set(response.json()["imported"])
+            == ISOLATED | CONTINUOUS | NOISE_ISOLATED | NOISE_CONTINUOUS
+        )
         assert response.json()["rejected"] == []
 
         listing = client.get("/api/evaluations").json()
         assert listing["code"] == "runs_available"
         runs = {run["id"]: run for run in listing["runs"]}
-        assert set(runs) == ISOLATED | CONTINUOUS
+        assert set(runs) == ISOLATED | CONTINUOUS | NOISE_ISOLATED | NOISE_CONTINUOUS
         assert {runs[run]["kind"] for run in ISOLATED} == {"isolated"}
         assert {runs[run]["kind"] for run in CONTINUOUS} == {"continuous"}
 
@@ -92,6 +103,21 @@ def test_importing_committed_runs_lists_each_with_provenance(tmp_path: Path) -> 
         assert held_out["target"]["goal"] == 0.7
         assert held_out["target"]["achieved"] == 0.01038961038961039
         assert held_out["target"]["met"] is False
+
+        # P1-03: provenance names noise sources per split for the paired runs.
+        noisy = runs["e02-isolated-test-noisy-e47e49f57e81"]
+        assert noisy["provenance"]["condition"] == "noisy"
+        assert noisy["provenance"]["noise_sources"] == [
+            "doing_the_dishes",
+            "pink_noise",
+            "white_noise",
+        ]
+        assert noisy["provenance"]["dataset_version"] == "speech-commands-v0.02-p1-noise-v1"
+        assert noisy["provenance"]["split_version"] == "speaker-sha256-80-10-10-noise-sources-v2"
+        assert (
+            noisy["provenance"]["checkpoint_sha256"]
+            == runs["e02-isolated-test-clean-e47e49f57e81"]["provenance"]["checkpoint_sha256"]
+        )
 
 
 def keys(value: object) -> set[str]:
@@ -212,7 +238,7 @@ def test_deleted_runs_stay_deleted_and_leave_explicit_empty_state(tmp_path: Path
         assert gone.json()["error"]["code"] == "evaluation_not_found"
         assert client.delete(f"/api/evaluations/{run}").status_code == 404
         remaining = {item["id"] for item in client.get("/api/evaluations").json()["runs"]}
-        assert remaining == ISOLATED | CONTINUOUS - {run}
+        assert remaining == ISOLATED | CONTINUOUS | NOISE_ISOLATED | NOISE_CONTINUOUS - {run}
 
     # Deletion persists across restart; nothing re-imports runs implicitly.
     with open_client(config) as client:
@@ -326,9 +352,9 @@ def test_store_from_before_evaluation_api_upgrades_reserved_table(tmp_path: Path
     legacy.close()
     with open_client(config) as client:
         assert client.post("/api/evaluations/import").status_code == 200
-        assert len(client.get("/api/evaluations").json()["runs"]) == 6
+        assert len(client.get("/api/evaluations").json()["runs"]) == 10
     with open_client(config) as client:
-        assert len(client.get("/api/evaluations").json()["runs"]) == 6
+        assert len(client.get("/api/evaluations").json()["runs"]) == 10
 
 
 def test_compare_matched_isolated_pair_reads_both_runs_side_by_side(
@@ -370,9 +396,7 @@ def test_compare_matched_isolated_pair_reads_both_runs_side_by_side(
             assert "per_keyword" not in metrics
         e01, e02 = body["runs"]
         assert e01["metrics"]["macro_f1"] != e02["metrics"]["macro_f1"]
-        assert (
-            e01["provenance"]["checkpoint_sha256"] != e02["provenance"]["checkpoint_sha256"]
-        )
+        assert e01["provenance"]["checkpoint_sha256"] != e02["provenance"]["checkpoint_sha256"]
 
 
 def test_compare_matched_continuous_pair_keeps_event_numbers_separate(
@@ -469,6 +493,194 @@ def test_compare_deleted_run_clears_with_no_fallback(tmp_path: Path) -> None:
         # The surviving run is still directly readable; nothing falls back.
         survivor = client.get("/api/evaluations/e02-isolated-test-e47e49f57e81")
         assert survivor.status_code == 200
+
+
+def test_compare_noise_isolated_pair_shares_checkpoint_and_names_sources(
+    tmp_path: Path,
+) -> None:
+    """P1-03: clean/noisy isolated runs pair under one comparison; only condition differs."""
+    with open_client(settings(tmp_path)) as client:
+        client.post("/api/evaluations/import")
+        response = client.get(
+            "/api/evaluations/compare",
+            params={
+                "run_a": "e02-isolated-test-clean-e47e49f57e81",
+                "run_b": "e02-isolated-test-noisy-e47e49f57e81",
+            },
+        )
+        assert response.status_code == 200
+        body = response.json()
+        assert body["code"] == "comparison_available"
+        assert body["comparison_type"] == "noise"
+        assert body["kind"] == "isolated"
+        assert body["dataset_version"] == "speech-commands-v0.02-p1-noise-v1"
+        assert body["split_version"] == "speaker-sha256-80-10-10-noise-sources-v2"
+        assert body["split"] == "test"
+        assert body["noise_sources"] == ["doing_the_dishes", "pink_noise", "white_noise"]
+        clean, noisy = body["runs"]
+        assert [run["id"] for run in body["runs"]] == [
+            "e02-isolated-test-clean-e47e49f57e81",
+            "e02-isolated-test-noisy-e47e49f57e81",
+        ]
+        # Same checkpoint hash and protocol; only the dataset condition differs.
+        assert clean["provenance"]["checkpoint_sha256"] == noisy["provenance"]["checkpoint_sha256"]
+        assert clean["provenance"]["condition"] == "clean"
+        assert noisy["provenance"]["condition"] == "noisy"
+        assert clean["provenance"]["noise_sources"] == noisy["provenance"]["noise_sources"]
+        for run in body["runs"]:
+            metrics = run["metrics"]
+            # Silence recall is reported per noise source.
+            assert set(metrics["silence_recall_by_source"]) == {
+                "doing_the_dishes",
+                "pink_noise",
+                "white_noise",
+            }
+            # Every reported number recomputes from the run's own counts.
+            values = metrics["confusion_matrix"]["values"]
+            correct = sum(values[i][i] for i in range(len(values)))
+            assert math.isclose(metrics["accuracy"], correct / metrics["examples"])
+            mean_f1 = sum(c["f1"] for c in metrics["per_class"]) / len(metrics["per_class"])
+            assert math.isclose(metrics["macro_f1"], mean_f1)
+            assert "false_alarms" not in metrics
+        assert clean["metrics"]["macro_f1"] != noisy["metrics"]["macro_f1"]
+
+
+def test_compare_noise_continuous_pair_excludes_unlabeled_gaps(tmp_path: Path) -> None:
+    """P1-03: clean/noisy continuous runs pair; unlabeled gaps stay out of exposure."""
+    with open_client(settings(tmp_path)) as client:
+        client.post("/api/evaluations/import")
+        response = client.get(
+            "/api/evaluations/compare",
+            params={
+                "run_a": "e02-continuous-test-clean-e47e49f57e81",
+                "run_b": "e02-continuous-test-noisy-e47e49f57e81",
+            },
+        )
+        assert response.status_code == 200
+        body = response.json()
+        assert body["comparison_type"] == "noise"
+        assert body["kind"] == "continuous"
+        assert body["split"] == "test"
+        clean, noisy = body["runs"]
+        assert clean["provenance"]["checkpoint_sha256"] == noisy["provenance"]["checkpoint_sha256"]
+        # Same frozen detector protocol on both conditions.
+        assert clean["provenance"]["config_sha256"] == noisy["provenance"]["config_sha256"]
+        assert clean["detector"]["tolerance_s"] == noisy["detector"]["tolerance_s"] == 0.5
+        for run in body["runs"]:
+            metrics = run["metrics"]
+            composition = run["composition"]
+            # Unlabeled gaps are excluded from negative exposure.
+            assert composition["unlabeled_seconds"] > 0
+            expected_negative = (
+                composition["annotated_seconds"]["unknown"]
+                + composition["annotated_seconds"]["silence"]
+            )
+            assert math.isclose(metrics["false_alarms"]["negative_seconds"], expected_negative)
+            assert "accuracy" not in keys(run)
+
+
+def test_compare_noise_rejects_mismatched_provenance(tmp_path: Path) -> None:
+    """P1-03: pairs that differ by more than condition are rejected actionably."""
+    root = tmp_path / "evaluations"
+    clean_doc = json.loads(
+        (COMMITTED / "noise-v1" / "e02-isolated-test-clean.json").read_text(encoding="utf-8")
+    )
+    write(root, "a/clean.json", clean_doc)
+    other_checkpoint = json.loads(
+        (COMMITTED / "noise-v1" / "e02-isolated-test-noisy.json").read_text(encoding="utf-8")
+    )
+    other_checkpoint["run_id"] = "e02-isolated-test-noisy-other-ckpt"
+    other_checkpoint["checkpoint"]["sha256"] = "0" * 64
+    write(root, "a/other-checkpoint.json", other_checkpoint)
+    other_dataset = json.loads(
+        (COMMITTED / "noise-v1" / "e02-isolated-test-noisy.json").read_text(encoding="utf-8")
+    )
+    other_dataset["run_id"] = "e02-isolated-test-noisy-other-data"
+    other_dataset["dataset"]["dataset_version"] = "speech-commands-v0.02-p0-subset-v1"
+    write(root, "a/other-dataset.json", other_dataset)
+    with open_client(settings(tmp_path, root)) as client:
+        assert client.post("/api/evaluations/import").status_code == 200
+        checkpoint = client.get(
+            "/api/evaluations/compare",
+            params={
+                "run_a": "e02-isolated-test-clean-e47e49f57e81",
+                "run_b": "e02-isolated-test-noisy-other-ckpt",
+            },
+        )
+        assert checkpoint.status_code == 400
+        assert checkpoint.json()["error"]["code"] == "comparison_provenance_mismatch"
+        assert "only the dataset condition differs" in checkpoint.json()["error"]["message"]
+
+        dataset = client.get(
+            "/api/evaluations/compare",
+            params={
+                "run_a": "e02-isolated-test-clean-e47e49f57e81",
+                "run_b": "e02-isolated-test-noisy-other-data",
+            },
+        )
+        assert dataset.status_code == 400
+        assert dataset.json()["error"]["code"] == "comparison_provenance_mismatch"
+
+        # A clean run from the P0 dataset version is not pairable with a noise-v1 run.
+    cross_store = tmp_path / "cross-store"
+    with open_client(settings(cross_store)) as committed_client:
+        committed_client.post("/api/evaluations/import")
+        cross = committed_client.get(
+            "/api/evaluations/compare",
+            params={
+                "run_a": "e02-isolated-test-e47e49f57e81",
+                "run_b": "e02-isolated-test-noisy-e47e49f57e81",
+            },
+        )
+        assert cross.status_code == 400
+        assert cross.json()["error"]["code"] == "comparison_provenance_mismatch"
+
+
+def test_compare_noise_continuous_rejects_protocol_drift(tmp_path: Path) -> None:
+    """P1-03: continuous noise pairs must share detector config and tolerance."""
+    root = tmp_path / "evaluations"
+    clean_doc = json.loads(
+        (COMMITTED / "noise-v1" / "e02-continuous-test-clean.json").read_text(encoding="utf-8")
+    )
+    write(root, "a/clean.json", clean_doc)
+    drifted = json.loads(
+        (COMMITTED / "noise-v1" / "e02-continuous-test-noisy.json").read_text(encoding="utf-8")
+    )
+    drifted["run_id"] = "e02-continuous-test-noisy-drifted"
+    drifted["detector"]["config"]["threshold"] = 0.9
+    write(root, "a/drifted.json", drifted)
+    with open_client(settings(tmp_path, root)) as client:
+        assert client.post("/api/evaluations/import").status_code == 200
+        response = client.get(
+            "/api/evaluations/compare",
+            params={
+                "run_a": "e02-continuous-test-clean-e47e49f57e81",
+                "run_b": "e02-continuous-test-noisy-drifted",
+            },
+        )
+        assert response.status_code == 400
+        assert response.json()["error"]["code"] == "comparison_protocol_mismatch"
+
+
+def test_compare_noise_deleted_run_clears_with_no_fallback(tmp_path: Path) -> None:
+    """P1-03: deleting one side of a noise pair clears the comparison; nothing falls back."""
+    with open_client(settings(tmp_path)) as client:
+        client.post("/api/evaluations/import")
+        run = "e02-isolated-test-noisy-e47e49f57e81"
+        assert client.delete(f"/api/evaluations/{run}").status_code == 204
+        response = client.get(
+            "/api/evaluations/compare",
+            params={
+                "run_a": "e02-isolated-test-clean-e47e49f57e81",
+                "run_b": run,
+            },
+        )
+        assert response.status_code == 404
+        assert response.json()["error"]["code"] == "evaluation_not_found"
+        # The surviving clean run is still directly readable; nothing falls back.
+        survivor = client.get("/api/evaluations/e02-isolated-test-clean-e47e49f57e81")
+        assert survivor.status_code == 200
+        assert client.get("/api/evaluations").json()["code"] == "runs_available"
 
 
 def test_legacy_predicted_columns_are_accepted_and_returned_as_detected(

@@ -8,6 +8,7 @@ import argparse
 import json
 import platform
 import time
+from collections import defaultdict
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -54,27 +55,61 @@ def single_window_latency(loaded: LoadedModel, window: np.ndarray, runs: int) ->
 
 
 def evaluate(
-    checkpoint: Path, features_dir: Path, split: str, *, latency_runs: int = 200
+    checkpoint: Path,
+    features_dir: Path,
+    split: str,
+    *,
+    condition: str | None = None,
+    latency_runs: int = 200,
+    allow_dataset_mismatch: bool = False,
 ) -> dict[str, Any]:
     if split not in ("validation", "test"):
         raise ValueError("Evaluation Runs use held-out validation or test data only")
     started = time.perf_counter()
     loaded = load_checkpoint(checkpoint)
-    cached = load_cache(features_dir, split)
+    cache_name = f"{split}-noisy" if condition == "noisy" else split
+    if condition == "noisy" and not (features_dir / f"{cache_name}.npz").exists():
+        raise ValueError(f"No noisy feature cache for the {split} split; build it first")
+    cached = load_cache(features_dir, split, cache_name=cache_name)
     trained_on = loaded.metadata["dataset"]
     dataset = {key: cached.metadata[key] for key in DATASET_KEYS}
-    if dataset != trained_on:
+    effective_condition = condition or "clean"
+    if not allow_dataset_mismatch and dataset != trained_on:
         raise ValueError("Cache does not match the checkpoint's manifest or normalization")
     probabilities = loaded.probabilities(cached.features)
     detected = probabilities.argmax(axis=1).astype(np.int64)
     report = classification_report(
         confusion_matrix(cached.labels, detected, len(loaded.labels)), loaded.labels
     )
+    silence_recall_by_source: dict[str, float] = {}
+    silence_idx = loaded.labels.index("silence") if "silence" in loaded.labels else -1
+    noise_sources: list[str] = []
+    if cached.examples is not None and silence_idx >= 0:
+        source_counts: dict[str, int] = defaultdict(int)
+        source_correct: dict[str, int] = defaultdict(int)
+        for i, ex_str in enumerate(cached.examples):
+            if cached.labels[i] == silence_idx:
+                ex = json.loads(ex_str)
+                spk = ex.get("speaker_id", "")
+                src = spk.removeprefix("noise-source:") if spk.startswith("noise-source:") else spk
+                if src:
+                    source_counts[src] += 1
+                    if detected[i] == silence_idx:
+                        source_correct[src] += 1
+        noise_sources = sorted(source_counts.keys())
+        silence_recall_by_source = {
+            src: (source_correct[src] / source_counts[src])
+            for src in noise_sources
+            if source_counts[src] > 0
+        }
+    if silence_recall_by_source:
+        report["silence_recall_by_source"] = silence_recall_by_source
     eval_seconds = time.perf_counter() - started
     latency = single_window_latency(loaded, cached.features[0], latency_runs)
     experiment = loaded.metadata["experiment_id"]
+    suffix = f"-{condition}" if condition else ""
     return {
-        "run_id": f"{experiment.lower()}-isolated-{split}-{loaded.sha256[:12]}",
+        "run_id": f"{experiment.lower()}-isolated-{split}{suffix}-{loaded.sha256[:12]}",
         "kind": "isolated",
         "created_at": datetime.now(UTC).isoformat(),
         "code_revision": code_revision(),
@@ -91,7 +126,13 @@ def evaluate(
         "network": loaded.metadata["network"],
         "labels": list(loaded.labels),
         "features": loaded.metadata["features"],
-        "dataset": {**dataset, "split": split},
+        "dataset": {
+            **dataset,
+            "split": split,
+            "condition": effective_condition,
+            "noise_sources": noise_sources,
+            "snr_db": cached.metadata.get("snr_db") if effective_condition == "noisy" else None,
+        },
         "metrics": report,
         "target": {
             "macro_f1": MACRO_F1_TARGET,
@@ -144,6 +185,43 @@ def compare(runs: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def compare_noise(runs: list[dict[str, Any]]) -> dict[str, Any]:
+    """Pair one clean and one noisy run that differ only in dataset condition.
+
+    Checkpoint hash, dataset/split versions and split must match; continuous
+    runs must also share the frozen detector configuration and tolerance.
+    """
+    if len(runs) != 2:
+        raise ValueError("Noise comparison needs exactly one clean and one noisy Evaluation Run")
+    first, second = runs
+    if first.get("kind") != second.get("kind"):
+        raise ValueError(f"Kinds differ: {first.get('kind')} vs {second.get('kind')}")
+    conditions = [run["dataset"].get("condition", "clean") for run in runs]
+    if sorted(conditions) != ["clean", "noisy"]:
+        raise ValueError("Noise comparison needs exactly one clean and one noisy Evaluation Run")
+    if first["checkpoint"]["sha256"] != second["checkpoint"]["sha256"]:
+        raise ValueError("Checkpoint hash differs; only the dataset condition may differ")
+    for key in ("dataset_version", "split_version", "split"):
+        if first["dataset"].get(key) != second["dataset"].get(key):
+            raise ValueError(f"Dataset {key} differs; only the dataset condition may differ")
+    if first["kind"] == "continuous":
+        for key in ("config", "tolerance_s"):
+            if first["detector"][key] != second["detector"][key]:
+                raise ValueError(f"Detector {key} differs; only the dataset condition may differ")
+    return {
+        "comparison_type": "noise",
+        "kind": first["kind"],
+        "checkpoint_sha256": first["checkpoint"]["sha256"],
+        "dataset_version": first["dataset"]["dataset_version"],
+        "split_version": first["dataset"]["split_version"],
+        "split": first["dataset"]["split"],
+        "noise_sources": sorted(
+            {name for run in runs for name in run["dataset"].get("noise_sources", [])}
+        ),
+        "runs": sorted(runs, key=lambda run: run["dataset"].get("condition", "clean") != "clean"),
+    }
+
+
 def write_json(path: Path, value: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(value, indent=2) + "\n", encoding="utf-8")
@@ -156,15 +234,28 @@ def main() -> None:
     run_parser.add_argument("--checkpoint", type=Path, required=True)
     run_parser.add_argument("--features", type=Path, required=True)
     run_parser.add_argument("--split", choices=("validation", "test"), default="test")
+    run_parser.add_argument("--condition", choices=("clean", "noisy"), default=None)
+    run_parser.add_argument("--allow-different-dataset", action="store_true")
     run_parser.add_argument("--output", type=Path, required=True)
     run_parser.add_argument("--latency-runs", type=int, default=200)
+
     compare_parser = sub.add_parser("compare")
     compare_parser.add_argument("--runs", type=Path, nargs="+", required=True)
     compare_parser.add_argument("--output", type=Path, required=True)
+
+    compare_noise_parser = sub.add_parser("compare-noise")
+    compare_noise_parser.add_argument("--runs", type=Path, nargs="+", required=True)
+    compare_noise_parser.add_argument("--output", type=Path, required=True)
+
     args = parser.parse_args()
     if args.command == "run":
         result = evaluate(
-            args.checkpoint, args.features, args.split, latency_runs=args.latency_runs
+            args.checkpoint,
+            args.features,
+            args.split,
+            condition=args.condition,
+            latency_runs=args.latency_runs,
+            allow_dataset_mismatch=args.allow_different_dataset,
         )
         write_json(args.output, result)
         metrics = result["metrics"]
@@ -177,10 +268,14 @@ def main() -> None:
                 f"  {label:<8} P {row['precision']:.3f} R {row['recall']:.3f} "
                 f"F1 {row['f1']:.3f} n={row['support']}"
             )
+        if "silence_recall_by_source" in metrics:
+            print("  silence recall by source:")
+            for src, rec in metrics["silence_recall_by_source"].items():
+                print(f"    {src:<15} {rec * 100:.1f}%")
         print("  confusion (rows true, columns detected):")
         for label, row in zip(result["labels"], metrics["confusion_matrix"]["values"], strict=True):
             print(f"  {label:<8} {' '.join(f'{v:4d}' for v in row)}")
-    else:
+    elif args.command == "compare":
         comparison = compare([json.loads(path.read_text(encoding="utf-8")) for path in args.runs])
         write_json(args.output, comparison)
         for row in comparison["runs"]:
@@ -190,6 +285,12 @@ def main() -> None:
                 f"macro-F1 {row['macro_f1']:.4f}, "
                 f"forward {row['model_forward_median_ms']:.2f} ms median"
             )
+    elif args.command == "compare-noise":
+        comparison = compare_noise(
+            [json.loads(path.read_text(encoding="utf-8")) for path in args.runs]
+        )
+        write_json(args.output, comparison)
+        print(f"Saved noise comparison: {args.output}")
 
 
 if __name__ == "__main__":

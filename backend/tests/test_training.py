@@ -7,7 +7,7 @@ import pytest
 import torch
 
 from ml.checkpoint import load_checkpoint
-from ml.evaluate import compare, evaluate
+from ml.evaluate import compare, compare_noise, evaluate
 from ml.features import LABELS
 from ml.metrics import classification_report, confusion_matrix
 from ml.networks import LstmClassifier
@@ -112,3 +112,92 @@ def test_evaluation_is_reproducible_and_reports_every_class(
         compare([first, validation])
     with pytest.raises(ValueError, match="held-out"):
         evaluate(checkpoint, cache, "train", latency_runs=2)
+
+
+def noisy_cache(cache: Path) -> None:
+    """Copy the test cache as a noisy condition; plumbing only, not real noise."""
+    with np.load(cache / "test.npz", allow_pickle=False) as cached:
+        arrays = {key: cached[key] for key in cached.files}
+    metadata = json.loads(str(arrays["metadata"]))
+    arrays["metadata"] = np.array(json.dumps({**metadata, "condition": "noisy", "snr_db": 10.0}))
+    arrays["features"] = arrays["features"] + 0.5
+    np.savez_compressed(cache / "test-noisy.npz", **arrays)
+
+
+def paired_runs(cache: Path, config: Path, tmp_path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
+    train(config, cache, tmp_path / "run")
+    checkpoint = tmp_path / "run" / "model.pt"
+    noisy_cache(cache)
+    clean = evaluate(checkpoint, cache, "test", condition="clean", latency_runs=2)
+    noisy = evaluate(checkpoint, cache, "test", condition="noisy", latency_runs=2)
+    return clean, noisy
+
+
+def test_noise_pair_shares_checkpoint_and_protocol_and_reports_silence_per_source(
+    cache: Path, config: Path, tmp_path: Path
+) -> None:
+    clean, noisy = paired_runs(cache, config, tmp_path)
+    assert clean["run_id"] != noisy["run_id"]
+    assert clean["dataset"]["condition"] == "clean" and noisy["dataset"]["condition"] == "noisy"
+    assert noisy["dataset"]["snr_db"] == 10.0 and clean["dataset"]["snr_db"] is None
+    assert noisy["dataset"]["noise_sources"]
+    assert set(noisy["metrics"]["silence_recall_by_source"]) == set(
+        noisy["dataset"]["noise_sources"]
+    )
+    comparison = compare_noise([noisy, clean])
+    assert comparison["comparison_type"] == "noise"
+    assert [run["dataset"]["condition"] for run in comparison["runs"]] == ["clean", "noisy"]
+    assert comparison["noise_sources"] == noisy["dataset"]["noise_sources"]
+
+
+def test_noisy_evaluation_without_a_noisy_cache_is_refused(
+    cache: Path, config: Path, tmp_path: Path
+) -> None:
+    train(config, cache, tmp_path / "run")
+    with pytest.raises(ValueError, match="noisy feature cache"):
+        evaluate(tmp_path / "run" / "model.pt", cache, "test", condition="noisy", latency_runs=2)
+
+
+def test_noise_comparison_rejects_mismatched_provenance(
+    cache: Path, config: Path, tmp_path: Path
+) -> None:
+    clean, noisy = paired_runs(cache, config, tmp_path)
+    with pytest.raises(ValueError, match="exactly one clean and one noisy"):
+        compare_noise([clean, clean])
+    other_checkpoint = {**noisy, "checkpoint": {**noisy["checkpoint"], "sha256": "0" * 64}}
+    with pytest.raises(ValueError, match="Checkpoint hash differs"):
+        compare_noise([clean, other_checkpoint])
+    other_dataset = {**noisy, "dataset": {**noisy["dataset"], "dataset_version": "other"}}
+    with pytest.raises(ValueError, match="dataset_version differs"):
+        compare_noise([clean, other_dataset])
+    other_split = {**noisy, "dataset": {**noisy["dataset"], "split": "validation"}}
+    with pytest.raises(ValueError, match="split differs"):
+        compare_noise([clean, other_split])
+
+
+def test_continuous_noise_comparison_requires_the_same_frozen_detector() -> None:
+    detector = {"config": {"threshold": 0.5}, "tolerance_s": 0.5}
+
+    def run(condition: str, **detector_changes: Any) -> dict[str, Any]:
+        return {
+            "kind": "continuous",
+            "checkpoint": {"sha256": "a" * 64},
+            "detector": {**detector, **detector_changes},
+            "dataset": {
+                "dataset_version": "ami",
+                "split_version": "s",
+                "split": "test",
+                "condition": condition,
+                "noise_sources": ["white_noise"] if condition == "noisy" else [],
+            },
+        }
+
+    paired = compare_noise([run("noisy"), run("clean")])
+    assert paired["noise_sources"] == ["white_noise"]
+    with pytest.raises(ValueError, match="config differs"):
+        compare_noise([run("clean"), run("noisy", config={"threshold": 0.9})])
+    with pytest.raises(ValueError, match="tolerance_s differs"):
+        compare_noise([run("clean"), run("noisy", tolerance_s=1.0)])
+    isolated = {**run("noisy"), "kind": "isolated"}
+    with pytest.raises(ValueError, match="Kinds differ"):
+        compare_noise([run("clean"), isolated])

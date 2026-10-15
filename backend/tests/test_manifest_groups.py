@@ -7,7 +7,13 @@ import numpy as np
 import pytest
 
 from ml.data import build_manifest, validate_manifest
-from ml.data.manifest import Source, speaker_split
+from ml.data.manifest import (
+    NOISE_ASSIGNMENT_V2,
+    SPLIT_VERSION_V2,
+    Source,
+    noise_sources_for_split,
+    speaker_split,
+)
 from ml.features import LABELS
 
 
@@ -106,3 +112,60 @@ def test_noise_segments_cannot_cross_splits_even_with_different_speaker_and_hash
     rows = tuple(moved if e == second else e for e in manifest.examples)
     with pytest.raises(ValueError, match="leakage.*source"):
         validate_manifest(replace(manifest, examples=rows), corpus)
+
+
+def write_noise(path: Path) -> None:
+    seed = int(hashlib.sha256(path.name.encode()).hexdigest()[:8], 16)
+    pcm = np.random.default_rng(seed).integers(-1000, 1000, 32000, dtype=np.int16)
+    with wave.open(str(path), "wb") as wav:
+        wav.setparams((1, 2, 16000, 0, "NONE", "not compressed"))
+        wav.writeframes(pcm.astype("<i2").tobytes())
+
+
+def test_v2_noise_split_keeps_p0_sources_and_gives_three_per_split(
+    corpus: Path,
+    sources: dict[str, Source],
+) -> None:
+    noise_dir = corpus / "_background_noise_"
+    for i in range(3):
+        (noise_dir / f"noise{i}.wav").unlink()
+    for stem in NOISE_ASSIGNMENT_V2:
+        write_noise(noise_dir / f"{stem}.wav")
+    manifest = build_manifest(
+        corpus,
+        sources,
+        max_per_class=2,
+        dataset_version="v2-test",
+        split_version=SPLIT_VERSION_V2,
+    )
+    by_split: dict[str, set[str]] = {}
+    for e in manifest.examples:
+        if e.label == "silence":
+            by_split.setdefault(e.split, set()).add(e.speaker_id.removeprefix("noise-source:"))
+    assert {k: len(v) for k, v in by_split.items()} == {"train": 3, "validation": 3, "test": 3}
+    # Every P0 source stays in its P0 split, so the P0 checkpoint never trained on a V2 test source.
+    p0 = {
+        "doing_the_dishes": "train",
+        "pink_noise": "train",
+        "dude_miaowing": "validation",
+        "running_tap": "validation",
+        "exercise_bike": "test",
+        "white_noise": "test",
+    }
+    for stem, split in p0.items():
+        assert stem in by_split[split]
+    assert noise_sources_for_split(corpus, "test", SPLIT_VERSION_V2) == [
+        "exercise_bike",
+        "violet_noise",
+        "white_noise",
+    ]
+
+
+def test_v1_noise_split_ignores_generated_sources(
+    corpus: Path,
+    sources: dict[str, Source],
+) -> None:
+    before = build_manifest(corpus, sources, max_per_class=2)
+    write_noise(corpus / "_background_noise_" / "blue_noise.wav")
+    after = build_manifest(corpus, sources, max_per_class=2)
+    assert before.examples == after.examples

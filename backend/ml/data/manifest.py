@@ -12,6 +12,25 @@ from ml.features import LABELS, read_wav
 
 SPLITS = ("train", "validation", "test")
 SPLIT_VERSION = "speaker-sha256-80-10-10-noise-source-round-robin-v1"
+SPLIT_VERSION_V1 = SPLIT_VERSION
+SPLIT_VERSION_V2 = "speaker-sha256-80-10-10-noise-sources-v2"
+DATASET_VERSION_V1 = "speech-commands-v0.02-p0-subset-v1"
+DATASET_VERSION_V2 = "speech-commands-v0.02-p1-noise-v1"
+# Noise recordings synthesized by ml.data.noise; the P0 round-robin never uses them.
+GENERATED_NOISE_STEMS = frozenset({"blue_noise", "brown_noise", "violet_noise"})
+# V2 keeps every P0 source in its P0 split (so the E02 checkpoint never trains on a
+# test noise source) and adds one generated source per split: three per split.
+NOISE_ASSIGNMENT_V2 = {
+    "doing_the_dishes": "train",
+    "pink_noise": "train",
+    "blue_noise": "train",
+    "dude_miaowing": "validation",
+    "running_tap": "validation",
+    "brown_noise": "validation",
+    "exercise_bike": "test",
+    "white_noise": "test",
+    "violet_noise": "test",
+}
 
 
 @dataclass(frozen=True)
@@ -71,11 +90,34 @@ def local_path(root: Path, relative: str) -> Path:
     return path
 
 
+def noise_assignment(root: Path, split_version: str) -> dict[Path, str]:
+    """Map each noise recording to its split under the given split version."""
+    noises = sorted((root / "_background_noise_").glob("*.wav"))
+    if split_version == SPLIT_VERSION_V2:
+        unassigned = {p.stem for p in noises} - set(NOISE_ASSIGNMENT_V2)
+        if unassigned:
+            raise ValueError(f"Noise sources without a V2 split: {sorted(unassigned)}")
+        return {p: NOISE_ASSIGNMENT_V2[p.stem] for p in noises if p.stem in NOISE_ASSIGNMENT_V2}
+    original = [p for p in noises if p.stem not in GENERATED_NOISE_STEMS]
+    return {p: SPLITS[i % 3] for i, p in enumerate(original)}
+
+
+def noise_sources_for_split(
+    root: Path, split: str, split_version: str = SPLIT_VERSION
+) -> list[str]:
+    """List sorted noise source stems assigned to a split."""
+    if split not in SPLITS:
+        raise ValueError(f"Invalid split: {split}")
+    return sorted(p.stem for p, s in noise_assignment(root, split_version).items() if s == split)
+
+
 def build_manifest(
     root: Path,
     sources: dict[str, Source],
     *,
     max_per_class: int = 1000,
+    dataset_version: str = DATASET_VERSION_V1,
+    split_version: str = SPLIT_VERSION,
 ) -> Manifest:
     """Select a deterministic, capped subset after assigning speakers to splits.
 
@@ -147,11 +189,10 @@ def build_manifest(
                         }
                     )
                 )
-    noises = sorted((root / "_background_noise_").glob("*.wav"))
-    if len(noises) < 3:
+    assignment = noise_assignment(root, split_version)
+    if len(assignment) < 3:
         raise ValueError("Silence requires at least three independent noise source recordings")
-    for i, path in enumerate(noises):
-        split = SPLITS[i % 3]
+    for path, split in assignment.items():
         relative = path.relative_to(root).as_posix()
         audio, digest = read_wav(path), file_sha256(path)
         for start in range(min(len(audio) // 16000, max_per_class)):
@@ -170,8 +211,8 @@ def build_manifest(
                 )
             )
     result = Manifest(
-        "speech-commands-v0.02-p0-subset-v1",
-        SPLIT_VERSION,
+        dataset_version,
+        split_version,
         LABELS,
         sources,
         tuple(sorted(selected, key=lambda e: (e.split, e.label, e.path, e.start_s))),
@@ -239,6 +280,6 @@ def load_manifest(path: Path) -> Manifest:
         value["dataset_version"],
         value["split_version"],
         tuple(value["labels"]),
-        {key: Source(**source) for key, source in value["sources"].items()},
-        tuple(Example(**example) for example in value["examples"]),
+        {k: Source(**v) for k, v in value["sources"].items()},
+        tuple(Example(**v) for v in value["examples"]),
     )
