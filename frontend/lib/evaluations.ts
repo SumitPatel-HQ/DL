@@ -53,7 +53,7 @@ export function runsFor(
 // Cross-checkpoint pairs (E01 vs E02) share this key; kind or dataset drift does not.
 export function comparisonKey(run: RunSummary): string {
   const p = run.provenance;
-  return `${run.kind}::${p.dataset_version}::${p.split_version}::${p.split}`;
+  return `${run.kind}::${p.dataset_version}::${p.split_version}::${p.split}::${conditionOf(run)}`;
 }
 
 // Runs of one kind that share a comparison key with at least one other run.
@@ -70,6 +70,32 @@ export function comparableRuns(runs: readonly RunSummary[], kind: RunKind): RunS
       (a, b) =>
         a.experiment_id.localeCompare(b.experiment_id) || a.created_at.localeCompare(b.created_at),
     );
+}
+
+export function conditionOf(run: RunSummary): "clean" | "noisy" {
+  return run.provenance.condition ?? "clean";
+}
+
+export type NoisePair = { clean: RunSummary; noisy: RunSummary };
+
+// One clean + one noisy run of one kind that share checkpoint and dataset/split
+// versions. A group missing either side yields no pair: the view reads Not
+// evaluated, and nothing substitutes another checkpoint or split.
+export function noisePairs(runs: readonly RunSummary[], kind: RunKind): NoisePair[] {
+  const groups = new Map<string, { clean?: RunSummary; noisy?: RunSummary }>();
+  for (const run of runs) {
+    if (run.kind !== kind) continue;
+    const p = run.provenance;
+    const key = [p.checkpoint_sha256, p.dataset_version, p.split_version, p.split].join("::");
+    const group = groups.get(key) ?? {};
+    const side = conditionOf(run);
+    const current = group[side];
+    if (!current || run.created_at > current.created_at) group[side] = run;
+    groups.set(key, group);
+  }
+  return [...groups.values()]
+    .filter((g): g is NoisePair => g.clean !== undefined && g.noisy !== undefined)
+    .sort((a, b) => a.clean.experiment_id.localeCompare(b.clean.experiment_id));
 }
 
 // Each row becomes "of the actual class, where did detections go".

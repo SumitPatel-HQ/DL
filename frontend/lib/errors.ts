@@ -162,6 +162,16 @@ const COPY: Record<string, ErrorCopy> = {
     detail: "Comparison needs identical dataset version, split version, and split. Pick two runs from the same Evaluation dataset.",
     recovery: "none",
   },
+  comparison_provenance_mismatch: {
+    title: "Runs are not a clean/noisy pair",
+    detail: "A noise comparison needs the same checkpoint hash and the same dataset version, split version, and split. Only the dataset condition may differ.",
+    recovery: "none",
+  },
+  comparison_protocol_mismatch: {
+    title: "Detector protocol differs",
+    detail: "Clean and noisy continuous runs must share the frozen detector configuration and tolerance.",
+    recovery: "none",
+  },
   mic_denied: {
     title: "Microphone permission denied",
     detail: "The browser did not get mic access. Press Start again and choose Allow.",

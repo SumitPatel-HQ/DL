@@ -1,6 +1,15 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { comparableRuns, comparisonKey, modelOptions, niceTicks, rowNormalize, runsFor, targetView } from "../lib/evaluations.ts";
+import {
+  comparableRuns,
+  comparisonKey,
+  modelOptions,
+  niceTicks,
+  noisePairs,
+  rowNormalize,
+  runsFor,
+  targetView,
+} from "../lib/evaluations.ts";
 
 const run = (id, kind, checkpoint, split, experiment = "E02") => ({
   id,
@@ -75,4 +84,47 @@ test("axis ticks are clean and cover the range", () => {
   assert.deepEqual(niceTicks(0, 1, 5), [0, 0.25, 0.5, 0.75, 1]);
   const ticks = niceTicks(0.27, 1.83, 5);
   assert.ok(ticks[0] <= 0.27 && ticks.at(-1) >= 1.83);
+});
+
+const noiseRun = (id, kind, condition, extra = {}) => ({
+  id,
+  kind,
+  experiment_id: "E02",
+  created_at: "2026-10-16T11:00:00+00:00",
+  source: `${id}.json`,
+  provenance: {
+    checkpoint_sha256: "bbb",
+    dataset_version: "noise-v1",
+    split_version: "sources-v2",
+    split: "test",
+    ...(condition ? { condition } : {}),
+    ...extra,
+  },
+  target: {},
+});
+
+test("noise pairs need one clean and one noisy run under the same checkpoint and dataset", () => {
+  const all = [
+    noiseRun("iso-clean", "isolated", "clean"),
+    noiseRun("iso-noisy", "isolated", "noisy"),
+    noiseRun("cont-clean", "continuous", undefined),
+    noiseRun("cont-noisy", "continuous", "noisy"),
+    noiseRun("other-noisy", "isolated", "noisy", { checkpoint_sha256: "ccc" }),
+  ];
+  assert.deepEqual(noisePairs(all, "isolated").map((p) => [p.clean.id, p.noisy.id]), [["iso-clean", "iso-noisy"]]);
+  // A run with no condition is clean, so the continuous pair still forms.
+  assert.deepEqual(noisePairs(all, "continuous").map((p) => [p.clean.id, p.noisy.id]), [["cont-clean", "cont-noisy"]]);
+});
+
+test("deleting one side of a noise pair leaves Not evaluated with no fallback", () => {
+  const remaining = [noiseRun("iso-clean", "isolated", "clean"), noiseRun("other-noisy", "isolated", "noisy", { split: "validation" })];
+  assert.deepEqual(noisePairs(remaining, "isolated"), []);
+});
+
+test("clean and noisy runs never share a model-comparison key", () => {
+  assert.notEqual(
+    comparisonKey(noiseRun("a", "isolated", "clean")),
+    comparisonKey(noiseRun("b", "isolated", "noisy")),
+  );
+  assert.deepEqual(comparableRuns([noiseRun("a", "isolated", "clean"), noiseRun("b", "isolated", "noisy")], "isolated"), []);
 });

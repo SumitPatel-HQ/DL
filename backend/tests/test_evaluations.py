@@ -108,8 +108,8 @@ def test_importing_committed_runs_lists_each_with_provenance(tmp_path: Path) -> 
         noisy = runs["e02-isolated-test-noisy-e47e49f57e81"]
         assert noisy["provenance"]["condition"] == "noisy"
         assert noisy["provenance"]["noise_sources"] == [
-            "doing_the_dishes",
-            "pink_noise",
+            "exercise_bike",
+            "violet_noise",
             "white_noise",
         ]
         assert noisy["provenance"]["dataset_version"] == "speech-commands-v0.02-p1-noise-v1"
@@ -238,7 +238,7 @@ def test_deleted_runs_stay_deleted_and_leave_explicit_empty_state(tmp_path: Path
         assert gone.json()["error"]["code"] == "evaluation_not_found"
         assert client.delete(f"/api/evaluations/{run}").status_code == 404
         remaining = {item["id"] for item in client.get("/api/evaluations").json()["runs"]}
-        assert remaining == ISOLATED | CONTINUOUS | NOISE_ISOLATED | NOISE_CONTINUOUS - {run}
+        assert remaining == (ISOLATED | CONTINUOUS | NOISE_ISOLATED | NOISE_CONTINUOUS) - {run}
 
     # Deletion persists across restart; nothing re-imports runs implicitly.
     with open_client(config) as client:
@@ -516,7 +516,7 @@ def test_compare_noise_isolated_pair_shares_checkpoint_and_names_sources(
         assert body["dataset_version"] == "speech-commands-v0.02-p1-noise-v1"
         assert body["split_version"] == "speaker-sha256-80-10-10-noise-sources-v2"
         assert body["split"] == "test"
-        assert body["noise_sources"] == ["doing_the_dishes", "pink_noise", "white_noise"]
+        assert body["noise_sources"] == ["exercise_bike", "violet_noise", "white_noise"]
         clean, noisy = body["runs"]
         assert [run["id"] for run in body["runs"]] == [
             "e02-isolated-test-clean-e47e49f57e81",
@@ -531,8 +531,8 @@ def test_compare_noise_isolated_pair_shares_checkpoint_and_names_sources(
             metrics = run["metrics"]
             # Silence recall is reported per noise source.
             assert set(metrics["silence_recall_by_source"]) == {
-                "doing_the_dishes",
-                "pink_noise",
+                "exercise_bike",
+                "violet_noise",
                 "white_noise",
             }
             # Every reported number recomputes from the run's own counts.
@@ -609,7 +609,7 @@ def test_compare_noise_rejects_mismatched_provenance(tmp_path: Path) -> None:
         )
         assert checkpoint.status_code == 400
         assert checkpoint.json()["error"]["code"] == "comparison_provenance_mismatch"
-        assert "only the dataset condition differs" in checkpoint.json()["error"]["message"]
+        assert "only the dataset condition may differ" in checkpoint.json()["error"]["message"]
 
         dataset = client.get(
             "/api/evaluations/compare",

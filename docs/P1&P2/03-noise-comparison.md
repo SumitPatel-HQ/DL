@@ -10,9 +10,9 @@ naming dataset/split versions and noise sources.
 
 **Blocked by:** P0-07 (acceptance report), new dataset version + ticket-03 protocol rerun.
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Clean and noisy runs share checkpoint hash and protocol; only the dataset condition differs
-- [ ] Provenance names noise sources per split; Silence recall is reported per source where feasible
-- [ ] Unlabeled gaps are excluded from negative exposure (existing rule)
-- [ ] CLI + API tests cover the paired-run import, mismatched-provenance rejection, and Not evaluated empty states
+- [x] Clean and noisy runs share checkpoint hash and protocol; only the dataset condition differs
+- [x] Provenance names noise sources per split; Silence recall is reported per source where feasible
+- [x] Unlabeled gaps are excluded from negative exposure (existing rule)
+- [x] CLI + API tests cover the paired-run import, mismatched-provenance rejection, and Not evaluated empty states

@@ -8,6 +8,7 @@ import { ChartIcon, DatabaseIcon, TrashIcon, XIcon } from "../icons";
 import { useBackend } from "../shell/backend";
 import { Banner, EmptyState, ErrorBanner } from "../ui";
 import { ComparisonSection } from "./comparison";
+import { NoiseComparisonSection } from "./noise";
 import { ContinuousView, IsolatedView, ProvenancePanel } from "./views";
 
 type Detail =
@@ -21,7 +22,7 @@ export function EvaluationDashboard({ initialTab, initialRun }: { initialTab: Ru
   const [listError, setListError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const [tab, setTab] = useState<RunKind>(initialTab);
-  const [mode, setMode] = useState<"single" | "compare">("single");
+  const [mode, setMode] = useState<"single" | "compare" | "noise">("single");
   const [checkpoint, setCheckpoint] = useState<string | null>(null);
   // undefined: follow the first run; null: nothing selected (after a deletion, never a fallback).
   const [runId, setRunId] = useState<string | null | undefined>(initialRun ?? undefined);
@@ -207,12 +208,25 @@ export function EvaluationDashboard({ initialTab, initialRun }: { initialTab: Ru
             <button type="button" aria-pressed={mode === "compare"} onClick={() => setMode("compare")}>
               Compare E01 vs E02
             </button>
+            <button type="button" aria-pressed={mode === "noise"} onClick={() => setMode("noise")}>
+              Clean vs noisy
+            </button>
           </div>
         </div>
       </div>
 
       {mode === "compare" ? (
         <ComparisonSection
+          runs={runs ?? []}
+          kind={tab}
+          online={online}
+          onImport={importRuns}
+          busy={busy}
+        />
+      ) : null}
+
+      {mode === "noise" ? (
+        <NoiseComparisonSection
           runs={runs ?? []}
           kind={tab}
           online={online}

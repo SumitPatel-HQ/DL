@@ -136,8 +136,8 @@ hypotheses (isolated macro-F1 0.740 vs 0.85, event-F1 0.010 vs 0.70),
 the target-hardware gap, the unexecuted microphone protocol, and data
 attribution are in the [validation report](docs/evaluations/validation-report.md).
 The faculty walkthrough (upload to Detections to live actions to
-dashboard) is in the [demo script](docs/demo.md). Clean-vs-noisy
-comparison is explicitly out of P0 scope (roadmap item P1-03).
+dashboard) is in the [demo script](docs/demo.md). The P1-03 clean-vs-noisy
+comparison and its protocol are in [noise-v1](docs/evaluations/noise-v1/README.md).
 
 ## Checks and reproducibility
 

@@ -89,6 +89,10 @@ export type Provenance = {
   config_role: "training" | "detector";
   config_sha256: string;
   code_revision: { commit: string | null; dirty: boolean | null };
+  /** Present on noise-condition runs; a missing condition means clean. */
+  condition?: "clean" | "noisy";
+  noise_sources?: string[];
+  snr_db?: number | null;
 };
 
 export type Target = {
@@ -139,6 +143,7 @@ export type IsolatedRun = RunSummary & {
     macro_f1: number;
     per_class: ClassMetrics[];
     confusion_matrix: { labels: string[]; rows: "true"; columns: "detected"; values: number[][] };
+    silence_recall_by_source?: Record<string, number>;
   };
   training: {
     train_examples: number;
@@ -200,6 +205,8 @@ export type RunDetail = IsolatedRun | ContinuousRun;
 
 export type Comparison = {
   code: "comparison_available";
+  comparison_type: "model" | "noise";
+  noise_sources: string[];
   kind: RunKind;
   dataset_version: string;
   split_version: string;
