@@ -15,6 +15,8 @@ type Detail =
   | { state: "ready"; run: RunDetail }
   | { state: "error"; id: string; code: string };
 
+type ViewMode = "single" | "compare" | "noise";
+
 export function EvaluationDashboard({ initialTab, initialRun }: { initialTab: RunKind; initialRun: string | null }) {
   const { backend, refresh } = useBackend();
   const activeId = backend.status === "ready" ? backend.model.id : null;
@@ -22,7 +24,7 @@ export function EvaluationDashboard({ initialTab, initialRun }: { initialTab: Ru
   const [listError, setListError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const [tab, setTab] = useState<RunKind>(initialTab);
-  const [mode, setMode] = useState<"single" | "compare" | "noise">("single");
+  const [mode, setMode] = useState<ViewMode>("single");
   const [checkpoint, setCheckpoint] = useState<string | null>(null);
   // undefined: follow the first run; null: nothing selected (after a deletion, never a fallback).
   const [runId, setRunId] = useState<string | null | undefined>(initialRun ?? undefined);

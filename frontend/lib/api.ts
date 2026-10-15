@@ -93,6 +93,9 @@ export type Provenance = {
   condition?: "clean" | "noisy";
   noise_sources?: string[];
   snr_db?: number | null;
+  noise_sources_by_split?: Record<string, string[]>;
+  /** Set when the checkpoint trained on a different dataset version than the run used. */
+  checkpoint_dataset_version?: string | null;
 };
 
 export type Target = {
@@ -205,8 +208,10 @@ export type RunDetail = IsolatedRun | ContinuousRun;
 
 export type Comparison = {
   code: "comparison_available";
+  comparison_id: string;
   comparison_type: "model" | "noise";
   noise_sources: string[];
+  noise_sources_by_split: Record<string, string[]>;
   kind: RunKind;
   dataset_version: string;
   split_version: string;

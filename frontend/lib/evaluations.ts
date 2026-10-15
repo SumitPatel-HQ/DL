@@ -72,6 +72,11 @@ export function comparableRuns(runs: readonly RunSummary[], kind: RunKind): RunS
     );
 }
 
+// Pairing key: comparisonKey without the condition, plus the checkpoint.
+function noisePairKey(run: RunSummary): string {
+  return `${run.provenance.checkpoint_sha256}::${comparisonKey(run).replace(/::(clean|noisy)$/, "")}`;
+}
+
 export function conditionOf(run: RunSummary): "clean" | "noisy" {
   return run.provenance.condition ?? "clean";
 }
@@ -85,8 +90,7 @@ export function noisePairs(runs: readonly RunSummary[], kind: RunKind): NoisePai
   const groups = new Map<string, { clean?: RunSummary; noisy?: RunSummary }>();
   for (const run of runs) {
     if (run.kind !== kind) continue;
-    const p = run.provenance;
-    const key = [p.checkpoint_sha256, p.dataset_version, p.split_version, p.split].join("::");
+    const key = noisePairKey(run);
     const group = groups.get(key) ?? {};
     const side = conditionOf(run);
     const current = group[side];

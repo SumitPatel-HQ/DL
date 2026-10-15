@@ -12,7 +12,6 @@ from ml.features import LABELS, read_wav
 
 SPLITS = ("train", "validation", "test")
 SPLIT_VERSION = "speaker-sha256-80-10-10-noise-source-round-robin-v1"
-SPLIT_VERSION_V1 = SPLIT_VERSION
 SPLIT_VERSION_V2 = "speaker-sha256-80-10-10-noise-sources-v2"
 DATASET_VERSION_V1 = "speech-commands-v0.02-p0-subset-v1"
 DATASET_VERSION_V2 = "speech-commands-v0.02-p1-noise-v1"
@@ -102,13 +101,25 @@ def noise_assignment(root: Path, split_version: str) -> dict[Path, str]:
     return {p: SPLITS[i % 3] for i, p in enumerate(original)}
 
 
-def noise_sources_for_split(
-    root: Path, split: str, split_version: str = SPLIT_VERSION
-) -> list[str]:
-    """List sorted noise source stems assigned to a split."""
-    if split not in SPLITS:
-        raise ValueError(f"Invalid split: {split}")
-    return sorted(p.stem for p, s in noise_assignment(root, split_version).items() if s == split)
+NOISE_SOURCE_PREFIX = "noise-source:"
+
+
+def noise_source_name(speaker_id: str) -> str:
+    """Noise recording stem from a noise example's speaker_id; '' for speech."""
+    return (
+        speaker_id.removeprefix(NOISE_SOURCE_PREFIX)
+        if speaker_id.startswith(NOISE_SOURCE_PREFIX)
+        else ""
+    )
+
+
+def noise_sources_by_split(manifest: "Manifest") -> dict[str, list[str]]:
+    """Sorted noise source stems of every split, read from the Silence examples."""
+    found: dict[str, set[str]] = {split: set() for split in SPLITS}
+    for example in manifest.examples:
+        if example.source_id == "noise":
+            found[example.split].add(noise_source_name(example.speaker_id))
+    return {split: sorted(names) for split, names in found.items()}
 
 
 def build_manifest(
@@ -201,7 +212,7 @@ def build_manifest(
                     relative,
                     "silence",
                     "_background_noise_",
-                    f"noise-source:{path.stem}",
+                    f"{NOISE_SOURCE_PREFIX}{path.stem}",
                     "noise",
                     relative,
                     split,
@@ -280,6 +291,6 @@ def load_manifest(path: Path) -> Manifest:
         value["dataset_version"],
         value["split_version"],
         tuple(value["labels"]),
-        {k: Source(**v) for k, v in value["sources"].items()},
-        tuple(Example(**v) for v in value["examples"]),
+        {key: Source(**source) for key, source in value["sources"].items()},
+        tuple(Example(**example) for example in value["examples"]),
     )

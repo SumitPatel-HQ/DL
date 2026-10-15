@@ -11,17 +11,19 @@ import time
 from collections import defaultdict
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import torch
 
 from ml.checkpoint import LoadedModel, load_checkpoint
+from ml.data.manifest import noise_source_name
 from ml.data.prepare import load_cache
 from ml.metrics import classification_report, confusion_matrix
 from ml.runtime import code_revision, peak_rss_bytes
 
 MACRO_F1_TARGET = 0.85
+Condition = Literal["clean", "noisy"]
 DATASET_KEYS = ("dataset_version", "split_version", "manifest_sha256", "normalization_sha256")
 
 
@@ -54,12 +56,32 @@ def single_window_latency(loaded: LoadedModel, window: np.ndarray, runs: int) ->
     }
 
 
+def silence_recall(
+    examples: np.ndarray | None,
+    labels: np.ndarray,
+    detected: np.ndarray,
+    class_names: tuple[str, ...],
+) -> dict[str, float]:
+    """Share of each noise source's Silence clips detected as Silence."""
+    if examples is None or "silence" not in class_names:
+        return {}
+    silence = class_names.index("silence")
+    total: dict[str, int] = defaultdict(int)
+    hits: dict[str, int] = defaultdict(int)
+    for example, label, guess in zip(examples, labels, detected, strict=True):
+        source = noise_source_name(json.loads(example).get("speaker_id", ""))
+        if label == silence and source:
+            total[source] += 1
+            hits[source] += int(guess == silence)
+    return {source: hits[source] / total[source] for source in sorted(total)}
+
+
 def evaluate(
     checkpoint: Path,
     features_dir: Path,
     split: str,
     *,
-    condition: str | None = None,
+    condition: Condition | None = None,
     latency_runs: int = 200,
     allow_dataset_mismatch: bool = False,
 ) -> dict[str, Any]:
@@ -83,32 +105,16 @@ def evaluate(
     report = classification_report(
         confusion_matrix(cached.labels, detected, len(loaded.labels)), loaded.labels
     )
-    silence_recall_by_source: dict[str, float] = {}
-    silence_idx = loaded.labels.index("silence") if "silence" in loaded.labels else -1
-    noise_sources: list[str] = []
-    if cached.examples is not None and silence_idx >= 0:
-        source_counts: dict[str, int] = defaultdict(int)
-        source_correct: dict[str, int] = defaultdict(int)
-        for i, ex_str in enumerate(cached.examples):
-            if cached.labels[i] == silence_idx:
-                ex = json.loads(ex_str)
-                spk = ex.get("speaker_id", "")
-                src = spk.removeprefix("noise-source:") if spk.startswith("noise-source:") else spk
-                if src:
-                    source_counts[src] += 1
-                    if detected[i] == silence_idx:
-                        source_correct[src] += 1
-        noise_sources = sorted(source_counts.keys())
-        silence_recall_by_source = {
-            src: (source_correct[src] / source_counts[src])
-            for src in noise_sources
-            if source_counts[src] > 0
-        }
+    silence_recall_by_source = silence_recall(
+        cached.examples, cached.labels, detected, loaded.labels
+    )
+    noise_sources = sorted(silence_recall_by_source)
     if silence_recall_by_source:
         report["silence_recall_by_source"] = silence_recall_by_source
     eval_seconds = time.perf_counter() - started
     latency = single_window_latency(loaded, cached.features[0], latency_runs)
     experiment = loaded.metadata["experiment_id"]
+    # No suffix without a condition keeps the P0 run IDs unchanged.
     suffix = f"-{condition}" if condition else ""
     return {
         "run_id": f"{experiment.lower()}-isolated-{split}{suffix}-{loaded.sha256[:12]}",
@@ -134,6 +140,12 @@ def evaluate(
             "condition": effective_condition,
             "noise_sources": noise_sources,
             "snr_db": cached.metadata.get("snr_db") if effective_condition == "noisy" else None,
+            "noise_sources_by_split": cached.metadata.get("noise_sources_by_split", {}),
+            "checkpoint_dataset_version": (
+                trained_on["dataset_version"]
+                if trained_on["dataset_version"] != dataset["dataset_version"]
+                else None
+            ),
         },
         "metrics": report,
         "target": {
@@ -187,6 +199,11 @@ def compare(runs: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def condition_of(run: dict[str, Any]) -> Condition:
+    condition: Condition = run["dataset"].get("condition", "clean")
+    return condition
+
+
 def noise_summary(run: dict[str, Any]) -> dict[str, Any]:
     metrics = run["metrics"]
     if run["kind"] == "continuous":
@@ -205,7 +222,7 @@ def noise_summary(run: dict[str, Any]) -> dict[str, Any]:
     dataset = run["dataset"]
     return {
         "run_id": run["run_id"],
-        "condition": dataset.get("condition", "clean"),
+        "condition": condition_of(run),
         "noise_sources": dataset.get("noise_sources", []),
         "snr_db": dataset.get("snr_db"),
         **headline,
@@ -223,7 +240,7 @@ def compare_noise(runs: list[dict[str, Any]]) -> dict[str, Any]:
     first, second = runs
     if first.get("kind") != second.get("kind"):
         raise ValueError(f"Kinds differ: {first.get('kind')} vs {second.get('kind')}")
-    conditions = [run["dataset"].get("condition", "clean") for run in runs]
+    conditions = [condition_of(run) for run in runs]
     if sorted(conditions) != ["clean", "noisy"]:
         raise ValueError("Noise comparison needs exactly one clean and one noisy Evaluation Run")
     if first["checkpoint"]["sha256"] != second["checkpoint"]["sha256"]:
@@ -245,11 +262,10 @@ def compare_noise(runs: list[dict[str, Any]]) -> dict[str, Any]:
         "noise_sources": sorted(
             {name for run in runs for name in run["dataset"].get("noise_sources", [])}
         ),
+        "noise_sources_by_split": second["dataset"].get("noise_sources_by_split")
+        or first["dataset"].get("noise_sources_by_split", {}),
         "runs": [
-            noise_summary(run)
-            for run in sorted(
-                runs, key=lambda run: run["dataset"].get("condition", "clean") != "clean"
-            )
+            noise_summary(run) for run in sorted(runs, key=lambda run: condition_of(run) != "clean")
         ],
     }
 

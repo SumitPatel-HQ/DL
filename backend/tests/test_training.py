@@ -7,7 +7,8 @@ import pytest
 import torch
 
 from ml.checkpoint import load_checkpoint
-from ml.evaluate import compare, compare_noise, evaluate
+from ml.data.noise import mix_noise
+from ml.evaluate import compare, compare_noise, evaluate, silence_recall
 from ml.features import LABELS
 from ml.metrics import classification_report, confusion_matrix
 from ml.networks import LstmClassifier
@@ -211,3 +212,30 @@ def test_continuous_noise_comparison_requires_the_same_frozen_detector() -> None
     isolated = {**run("noisy"), "kind": "isolated"}
     with pytest.raises(ValueError, match="Kinds differ"):
         compare_noise([run("clean"), isolated])
+
+
+def test_silence_recall_is_reported_per_noise_source() -> None:
+    names = ("left", "silence")
+    examples = np.array(
+        [
+            json.dumps({"speaker_id": "noise-source:a"}),
+            json.dumps({"speaker_id": "noise-source:a"}),
+            json.dumps({"speaker_id": "noise-source:b"}),
+            json.dumps({"speaker_id": "spk1"}),
+        ]
+    )
+    labels = np.array([1, 1, 1, 0])
+    detected = np.array([1, 0, 1, 1])
+    assert silence_recall(examples, labels, detected, names) == {"a": 0.5, "b": 1.0}
+    assert silence_recall(None, labels, detected, names) == {}
+
+
+def test_noise_mixing_rejects_empty_noise_and_hits_the_target_snr() -> None:
+    signal = (0.5 * np.sin(np.linspace(0, 200, 16000))).astype(np.float32)
+    with pytest.raises(ValueError, match="empty noise"):
+        mix_noise(signal, np.empty(0, dtype=np.float32))
+    noise = np.random.default_rng(1).standard_normal(48000).astype(np.float32) * 0.1
+    mixed = mix_noise(signal, noise, 10.0, np.random.default_rng(2))
+    added = mixed - signal
+    snr = 20 * np.log10(np.sqrt(np.mean(signal**2)) / np.sqrt(np.mean(added**2)))
+    assert snr == pytest.approx(10.0, abs=0.1)

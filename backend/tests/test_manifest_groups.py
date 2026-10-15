@@ -11,7 +11,7 @@ from ml.data.manifest import (
     NOISE_ASSIGNMENT_V2,
     SPLIT_VERSION_V2,
     Source,
-    noise_sources_for_split,
+    noise_sources_by_split,
     speaker_split,
 )
 from ml.features import LABELS
@@ -154,7 +154,7 @@ def test_v2_noise_split_keeps_p0_sources_and_gives_three_per_split(
     }
     for stem, split in p0.items():
         assert stem in by_split[split]
-    assert noise_sources_for_split(corpus, "test", SPLIT_VERSION_V2) == [
+    assert noise_sources_by_split(manifest)["test"] == [
         "exercise_bike",
         "violet_noise",
         "white_noise",

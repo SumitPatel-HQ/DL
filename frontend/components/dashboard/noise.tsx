@@ -21,6 +21,61 @@ function signed(value: number): string {
   return `${value >= 0 ? "+" : "âˆ’"}${Math.abs(value).toFixed(3)}`;
 }
 
+type PrfRow = { precision: number; recall: number; f1: number };
+
+function prf(row: PrfRow | undefined): string {
+  return row ? `${row.precision.toFixed(3)} / ${row.recall.toFixed(3)} / ${row.f1.toFixed(3)}` : "—";
+}
+
+// Clean vs noisy precision / recall / F1 per class or Keyword, in the clean run's order.
+function PrfTable({
+  title,
+  sub,
+  nameHeader,
+  clean,
+  noisy,
+  footer,
+}: {
+  title: string;
+  sub: ReactNode;
+  nameHeader: string;
+  clean: ReadonlyMap<string, PrfRow>;
+  noisy: ReadonlyMap<string, PrfRow>;
+  footer: ReactNode;
+}) {
+  return (
+    <section className="card">
+      <div className="card-head">
+        <div>
+          <h3>{title}</h3>
+          <p className="sub">{sub}</p>
+        </div>
+      </div>
+      <div className="table-wrap">
+        <table className="data">
+          <thead>
+            <tr>
+              <th scope="col">{nameHeader}</th>
+              <th scope="col" className="right">Clean P / R / F1</th>
+              <th scope="col" className="right">Noisy P / R / F1</th>
+            </tr>
+          </thead>
+          <tbody>
+            {[...clean.keys()].map((name) => (
+              <tr key={name}>
+                <td>{name}</td>
+                <td className="right mono">{prf(clean.get(name))}</td>
+                <td className="right mono">{prf(noisy.get(name))}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {footer}
+    </section>
+  );
+}
+
 function ConditionTile({ run, children }: { run: RunDetail; children: ReactNode }) {
   const noisy = run.provenance.condition === "noisy";
   return (
@@ -85,10 +140,19 @@ function NoisePairView({ pair, online }: { pair: NoisePair; online: boolean }) {
               {visible.dataset_version} Â· {visible.split_version}
             </p>
             <p className="sub">
-              Noise sources ({visible.split} split): {visible.noise_sources.join(", ") || "none recorded"}
-              {snr != null ? ` Â· mixed at ${formatNumber(snr, 0)} dB SNR` : ""} Â· same checkpoint{" "}
+              Noise sources by split:{" "}
+              {Object.entries(visible.noise_sources_by_split)
+                .map(([split, names]) => `${split} (${names.join(", ")})`)
+                .join(" · ") || visible.noise_sources.join(", ") || "none recorded"}
+              {snr != null ? ` · mixed at ${formatNumber(snr, 0)} dB SNR` : ""}
+            </p>
+            <p className="sub">
+              Comparison <code>{visible.comparison_id}</code> · same checkpoint{" "}
               <code>{shortHash(clean.provenance.checkpoint_sha256, 8)}</code>, same protocol; only the dataset
               condition differs
+              {clean.provenance.checkpoint_dataset_version
+                ? ` · checkpoint trained on ${clean.provenance.checkpoint_dataset_version}`
+                : ""}
             </p>
           </div>
         </div>
@@ -131,47 +195,20 @@ function IsolatedNoise({ clean, noisy }: { clean: IsolatedRun; noisy: IsolatedRu
 }
 
 function IsolatedNoiseDetail({ clean, noisy }: { clean: IsolatedRun; noisy: IsolatedRun }) {
-  const noisyClasses = new Map(noisy.metrics.per_class.map((c) => [c.label, c]));
   const cleanSilence = clean.metrics.silence_recall_by_source ?? {};
   const noisySilence = noisy.metrics.silence_recall_by_source ?? {};
   const sources = [...new Set([...Object.keys(cleanSilence), ...Object.keys(noisySilence)])].sort();
   const cell = (value: number | undefined) => (value === undefined ? "Not evaluated" : value.toFixed(3));
   return (
     <div className="grid-2">
-      <section className="card">
-        <div className="card-head">
-          <div>
-            <h3>Per-class precision, recall, F1 Â· clean vs noisy</h3>
-            <p className="sub">Support is the denominator for recall</p>
-          </div>
-        </div>
-        <div className="table-wrap">
-          <table className="data">
-            <thead>
-              <tr>
-                <th scope="col">Class</th>
-                <th scope="col" className="right">Clean P / R / F1</th>
-                <th scope="col" className="right">Noisy P / R / F1</th>
-              </tr>
-            </thead>
-            <tbody>
-              {clean.metrics.per_class.map((left) => {
-                const right = noisyClasses.get(left.label);
-                const fmt = (c: typeof left | undefined) =>
-                  c ? `${c.precision.toFixed(3)} / ${c.recall.toFixed(3)} / ${c.f1.toFixed(3)}` : "â€”";
-                return (
-                  <tr key={left.label}>
-                    <td>{left.label}</td>
-                    <td className="right mono">{fmt(left)}</td>
-                    <td className="right mono">{fmt(right)}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-        <RunTrace run={clean} />
-      </section>
+      <PrfTable
+        title="Per-class precision, recall, F1 · clean vs noisy"
+        sub="Support is the denominator for recall"
+        nameHeader="Class"
+        clean={new Map(clean.metrics.per_class.map((c) => [c.label, c]))}
+        noisy={new Map(noisy.metrics.per_class.map((c) => [c.label, c]))}
+        footer={<RunTrace run={clean} />}
+      />
       <section className="card">
         <div className="card-head">
           <div>
@@ -235,45 +272,20 @@ function ContinuousNoise({ clean, noisy }: { clean: ContinuousRun; noisy: Contin
 }
 
 function ContinuousNoiseDetail({ clean, noisy }: { clean: ContinuousRun; noisy: ContinuousRun }) {
-  const noisyKeywords = new Map(noisy.metrics.per_keyword.map((k) => [k.keyword, k]));
   return (
-    <section className="card">
-      <div className="card-head">
-        <div>
-          <h3>Per-Keyword events Â· clean vs noisy</h3>
-          <p className="sub">
-            Experimental window Detector at the frozen Â±{clean.detector.tolerance_s} s tolerance. Unlabeled gaps
-            are excluded from negative exposure ({formatNumber(clean.composition.unlabeled_seconds, 0)} s here).
-          </p>
-        </div>
-      </div>
-      <div className="table-wrap">
-        <table className="data">
-          <thead>
-            <tr>
-              <th scope="col">Keyword</th>
-              <th scope="col" className="right">Clean P / R / F1</th>
-              <th scope="col" className="right">Noisy P / R / F1</th>
-            </tr>
-          </thead>
-          <tbody>
-            {clean.metrics.per_keyword.map((left) => {
-              const right = noisyKeywords.get(left.keyword);
-              const fmt = (k: typeof left | undefined) =>
-                k ? `${k.precision.toFixed(3)} / ${k.recall.toFixed(3)} / ${k.f1.toFixed(3)}` : "â€”";
-              return (
-                <tr key={left.keyword}>
-                  <td>{left.keyword}</td>
-                  <td className="right mono">{fmt(left)}</td>
-                  <td className="right mono">{fmt(right)}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-      <RunTrace run={noisy} />
-    </section>
+    <PrfTable
+      title="Per-Keyword events · clean vs noisy"
+      sub={
+        <>
+          Experimental window Detector at the frozen ±{clean.detector.tolerance_s} s tolerance. Unlabeled gaps
+          are excluded from negative exposure ({formatNumber(clean.composition.unlabeled_seconds, 0)} s here).
+        </>
+      }
+      nameHeader="Keyword"
+      clean={new Map(clean.metrics.per_keyword.map((k) => [k.keyword, k]))}
+      noisy={new Map(noisy.metrics.per_keyword.map((k) => [k.keyword, k]))}
+      footer={<RunTrace run={noisy} />}
+    />
   );
 }
 

@@ -42,19 +42,19 @@ def generate_colored_noise(
 
 
 def ensure_additional_noise_sources(noise_dir: Path) -> list[Path]:
-    """Ensure brown_noise.wav, blue_noise.wav, violet_noise.wav exist in noise_dir."""
+    """Create any missing blue/brown/violet noise files; return all three paths."""
     colors: list[tuple[str, NoiseColor, int]] = [
         ("blue_noise.wav", "blue", 101),
         ("brown_noise.wav", "brown", 102),
         ("violet_noise.wav", "violet", 103),
     ]
-    created = []
+    paths = []
     for filename, color, seed in colors:
         path = noise_dir / filename
         if not path.exists():
             generate_colored_noise(path, color, duration_s=60.0, seed=seed)
-        created.append(path)
-    return created
+        paths.append(path)
+    return paths
 
 
 def mix_noise(
@@ -70,6 +70,8 @@ def mix_noise(
     """
     if len(signal) == 0:
         return signal.copy()
+    if len(noise) == 0:
+        raise ValueError("Cannot mix an empty noise recording")
     if len(noise) < len(signal):
         repeats = int(math.ceil(len(signal) / len(noise)))
         noise = np.tile(noise, repeats)

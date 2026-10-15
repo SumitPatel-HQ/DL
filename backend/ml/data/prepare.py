@@ -23,15 +23,11 @@ from ml.data.manifest import (
     validate_manifest,
 )
 from ml.features import FEATURE_CONFIG, LABELS, FeaturePipeline, Normalization, read_wav
-from ml.features.pipeline import Audio
+from ml.features.pipeline import SAMPLE_RATE, Audio
 
 
-def iter_features(
-    manifest: Manifest,
-    root: Path,
-    split: str,
-    pipeline: FeaturePipeline,
-) -> Iterator[tuple[Example, Audio]]:
+def iter_segments(manifest: Manifest, root: Path, split: str) -> Iterator[tuple[Example, Audio]]:
+    """Yield each example of a split with its raw audio segment."""
     if split not in SPLITS:
         raise ValueError("Invalid split")
     # The selected subset is small. Decode each source only while visiting its segments.
@@ -42,8 +38,35 @@ def iter_features(
         if example.path != previous_path:
             audio = read_wav(local_path(root, example.path))
             previous_path = example.path
-        segment = audio[round(example.start_s * 16000) : round(example.end_s * 16000)]
-        yield example, pipeline.from_audio(segment, 16000)
+        segment = audio[round(example.start_s * SAMPLE_RATE) : round(example.end_s * SAMPLE_RATE)]
+        yield example, segment
+
+
+def iter_features(
+    manifest: Manifest,
+    root: Path,
+    split: str,
+    pipeline: FeaturePipeline,
+) -> Iterator[tuple[Example, Audio]]:
+    for example, segment in iter_segments(manifest, root, split):
+        yield example, pipeline.from_audio(segment, SAMPLE_RATE)
+
+
+def write_split_cache(
+    path: Path,
+    rows: list[tuple[Example, Audio]],
+    metadata: dict[str, Any],
+) -> None:
+    """Write one cached split; metadata carries versions, hashes and any condition."""
+    np.savez_compressed(
+        path,
+        features=np.stack([features for _, features in rows]),
+        labels=np.array([LABELS.index(e.label) for e, _ in rows], dtype=np.int64),
+        examples=np.array([json.dumps(as_example(e), sort_keys=True) for e, _ in rows]),
+        metadata=np.array(
+            json.dumps({"features": FEATURE_CONFIG, "labels": LABELS, **metadata}, sort_keys=True)
+        ),
+    )
 
 
 def prepare_cache(manifest_path: Path, root: Path, output: Path) -> Normalization:
@@ -62,26 +85,16 @@ def prepare_cache(manifest_path: Path, root: Path, output: Path) -> Normalizatio
     stats.save(output / "normalization.json")
     pipeline = FeaturePipeline(stats)
     for split in SPLITS:
-        rows = list(iter_features(manifest, root, split, pipeline))
-        np.savez_compressed(
+        write_split_cache(
             output / f"{split}.npz",
-            features=np.stack([features for _, features in rows]),
-            labels=np.array([LABELS.index(e.label) for e, _ in rows], dtype=np.int64),
-            examples=np.array([json.dumps(as_example(e), sort_keys=True) for e, _ in rows]),
-            metadata=np.array(
-                json.dumps(
-                    {
-                        "features": FEATURE_CONFIG,
-                        "labels": LABELS,
-                        "split": split,
-                        "dataset_version": manifest.dataset_version,
-                        "split_version": manifest.split_version,
-                        "manifest_sha256": digest,
-                        "normalization_sha256": file_sha256(output / "normalization.json"),
-                    },
-                    sort_keys=True,
-                )
-            ),
+            list(iter_features(manifest, root, split, pipeline)),
+            {
+                "split": split,
+                "dataset_version": manifest.dataset_version,
+                "split_version": manifest.split_version,
+                "manifest_sha256": digest,
+                "normalization_sha256": file_sha256(output / "normalization.json"),
+            },
         )
     return stats
 
