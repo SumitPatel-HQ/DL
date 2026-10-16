@@ -51,14 +51,15 @@ CREATE INDEX IF NOT EXISTS detections_recording ON detections(recording_id);
 CREATE TABLE IF NOT EXISTS external_action_logs (
     id INTEGER PRIMARY KEY, session_id TEXT NOT NULL, event_id INTEGER,
     kind TEXT NOT NULL, target_id TEXT, action TEXT, status TEXT NOT NULL,
-    reason TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    reason TEXT NOT NULL, details_json TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS negative_session_reports (
     id TEXT PRIMARY KEY, document_json TEXT NOT NULL,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 """
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 # Recordings being analyzed by the bounded worker. RecordingService holds
 # Store.lock only for these short metadata transitions, never across audio
@@ -83,6 +84,11 @@ class Store:
             # shape never held data and is replaced rather than migrated.
             self.connection.execute("DROP TABLE IF EXISTS evaluation_runs")
         self.connection.executescript(SCHEMA)
+        columns = {
+            row[1] for row in self.connection.execute("PRAGMA table_info(external_action_logs)")
+        }
+        if "details_json" not in columns:
+            self.connection.execute("ALTER TABLE external_action_logs ADD COLUMN details_json TEXT")
         self.connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
         with self.transaction() as db:
             db.execute(

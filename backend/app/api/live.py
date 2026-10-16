@@ -54,13 +54,22 @@ def commands_legacy(live: Annotated[LiveService, Depends(service)]) -> dict[str,
 
 @router.get("/external-actions/logs")
 def external_logs(
-    live: Annotated[LiveService, Depends(service)], limit: Annotated[int, Query(ge=1, le=500)] = 100
+    live: Annotated[LiveService, Depends(service)],
+    limit: Annotated[int, Query(ge=1, le=500)] = 100,
+    before_id: Annotated[int | None, Query(ge=1)] = None,
 ) -> dict[str, Any]:
     with live.recordings.store.transaction() as db:
         rows = db.execute(
-            "SELECT * FROM external_action_logs ORDER BY id DESC LIMIT ?", (limit,)
+            "SELECT * FROM external_action_logs WHERE (? IS NULL OR id < ?) "
+            "ORDER BY id DESC LIMIT ?",
+            (before_id, before_id, limit),
         ).fetchall()
-    return {"logs": [dict(row) for row in rows]}
+    logs = []
+    for row in rows:
+        entry = dict(row)
+        entry["details"] = json.loads(entry.pop("details_json") or "null")
+        logs.append(entry)
+    return {"logs": logs}
 
 
 @router.get("/external-actions/negative-reports")

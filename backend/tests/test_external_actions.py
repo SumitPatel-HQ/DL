@@ -90,6 +90,10 @@ def test_permitted_voice_action_executes_once_and_audit_survives_restart(
             ("applied", "play"),
             ("attempted", "play"),
         ]
+        consent = next(row for row in logs if row["reason"] == "experimental_opt_in")
+        assert consent["details"]["target"]["label"] == "Test player"
+        assert consent["details"]["target"]["kind"] == "media"
+        assert consent["details"]["allowed_actions"] == ["play"]
     with open_client(settings) as client:
         assert client.get("/api/external-actions/logs").json()["logs"] == logs
         with client.websocket_connect(LIVE) as socket:
@@ -268,3 +272,43 @@ def test_schema_upgrade_preserves_imported_evaluation_runs(tmp_path: Path) -> No
     with open_client(settings) as client:
         assert client.get("/api/evaluations").json() == runs
         assert client.get("/api/external-actions/logs").json() == {"logs": []}
+
+
+def test_old_native_completion_does_not_revoke_a_new_permission_grant(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class CompletingDesktop(Desktop):
+        def __init__(self) -> None:
+            super().__init__()
+            self.entered, self.finish = threading.Event(), threading.Event()
+
+        async def execute(self, target: str, action: str) -> str:
+            self.entered.set()
+            while not self.finish.is_set():
+                await asyncio.sleep(0.01)
+            return "applied"
+
+    desktop = CompletingDesktop()
+    monkeypatch.setattr("app.api.live.WindowsExecutor", lambda: desktop)
+    with open_client(configured(tmp_path)) as client:
+        with client.websocket_connect(LIVE) as socket:
+            socket.send_json(start())
+            until(socket, "ready")
+            enable(socket)
+            send(socket, pcm(1.0))
+            until(socket, "frame")
+            send(socket, pcm(0.25))
+            assert desktop.entered.wait(5)
+            socket.send_json(
+                {
+                    "type": "external_grant",
+                    "target_id": "player-1",
+                    "actions": ["pause"],
+                    "acknowledge_experimental": True,
+                }
+            )
+            assert until(socket, "external_state")["allowed_actions"] == ["pause"]
+            desktop.finish.set()
+            state = until(socket, "external_state")
+            assert state["enabled"] is True and state["allowed_actions"] == ["pause"]
+            assert until(socket, "decision")["external"]["status"] == "applied"

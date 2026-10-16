@@ -60,6 +60,7 @@ class ExternalSession:
         self.negative: dict[str, Any] | None = None
         self.last_end: float | None = None
         self.provenance = provenance
+        self.executing = False
 
     def log(
         self,
@@ -69,12 +70,23 @@ class ExternalSession:
         action: str | None = None,
         event: int | None = None,
         target_id: str | None = None,
+        details: dict[str, Any] | None = None,
     ) -> None:
         with self.store.transaction() as db:
             db.execute(
                 "INSERT INTO external_action_logs "
-                "(session_id,event_id,kind,target_id,action,status,reason) VALUES (?,?,?,?,?,?,?)",
-                (self.session, event, kind, target_id or self.target, action, status, reason),
+                "(session_id,event_id,kind,target_id,action,status,reason,details_json) "
+                "VALUES (?,?,?,?,?,?,?,?)",
+                (
+                    self.session,
+                    event,
+                    kind,
+                    target_id or self.target,
+                    action,
+                    status,
+                    reason,
+                    json.dumps(details) if details is not None else None,
+                ),
             )
 
     def state(self, error: str | None = None) -> dict[str, Any]:
@@ -124,12 +136,22 @@ class ExternalSession:
                 if not set(actions) <= set(info["actions"]) & TARGET_ACTIONS[info["kind"]]:
                     raise ValueError
                 self.target, self.allowed = target, set(actions)
-                self.log("consent", "accepted", "experimental_opt_in")
+                self.log(
+                    "consent",
+                    "accepted",
+                    "experimental_opt_in",
+                    details={
+                        "target": info,
+                        "allowed_actions": sorted(self.allowed),
+                        "provenance": self.provenance,
+                    },
+                )
             elif kind == "external_revoke" and set(message) == {"type"}:
                 self.revoke("user_revoked")
             elif kind == "negative_start" and set(message) == {"type", "no_keywords_confirmed"}:
                 if (
                     self.target is None
+                    or self.executing
                     or self.negative is not None
                     or message["no_keywords_confirmed"] is not True
                 ):
@@ -188,10 +210,9 @@ class ExternalSession:
         self.log("action", "attempted", "permitted", decision.action, event)
         if self.negative is not None:
             self.negative["external_attempts"] += 1
+        self.executing = True
         try:
             status = await self.executor.execute(target, decision.action)
-            if generation != self.generation:
-                status = "outcome_unknown"
         except (OSError, TimeoutError):
             status = "outcome_unknown"
         except asyncio.CancelledError:
@@ -204,8 +225,10 @@ class ExternalSession:
                 target,
             )
             raise
+        finally:
+            self.executing = False
         self.log("action", status, "native_result", decision.action, event, target)
-        if status in ("failed", "outcome_unknown"):
+        if generation == self.generation and status in ("failed", "outcome_unknown"):
             self.revoke("execution_failed")
         return {"status": status, "reason": "native_result", "target_id": target}
 

@@ -24,7 +24,7 @@ function signed(value: number): string {
 type PrfRow = { precision: number; recall: number; f1: number };
 
 function prf(row: PrfRow | undefined): string {
-  return row ? `${row.precision.toFixed(3)} / ${row.recall.toFixed(3)} / ${row.f1.toFixed(3)}` : "—";
+  return row ? `${row.precision.toFixed(3)} / ${row.recall.toFixed(3)} / ${row.f1.toFixed(3)}` : "â€”";
 }
 
 // Clean vs noisy precision / recall / F1 per class or Keyword, in the clean run's order.
@@ -143,15 +143,15 @@ function NoisePairView({ pair, online }: { pair: NoisePair; online: boolean }) {
               Noise sources by split:{" "}
               {Object.entries(visible.noise_sources_by_split)
                 .map(([split, names]) => `${split} (${names.join(", ")})`)
-                .join(" · ") || visible.noise_sources.join(", ") || "none recorded"}
-              {snr != null ? ` · mixed at ${formatNumber(snr, 0)} dB SNR` : ""}
+                .join(" Â· ") || visible.noise_sources.join(", ") || "none recorded"}
+              {snr != null ? ` Â· mixed at ${formatNumber(snr, 0)} dB SNR` : ""}
             </p>
             <p className="sub">
-              Comparison <code>{visible.comparison_id}</code> · same checkpoint{" "}
+              Comparison <code>{visible.comparison_id}</code> Â· same checkpoint{" "}
               <code>{shortHash(clean.provenance.checkpoint_sha256, 8)}</code>, same protocol; only the dataset
               condition differs
               {clean.provenance.checkpoint_dataset_version
-                ? ` · checkpoint trained on ${clean.provenance.checkpoint_dataset_version}`
+                ? ` Â· checkpoint trained on ${clean.provenance.checkpoint_dataset_version}`
                 : ""}
             </p>
           </div>
@@ -202,7 +202,7 @@ function IsolatedNoiseDetail({ clean, noisy }: { clean: IsolatedRun; noisy: Isol
   return (
     <div className="grid-2">
       <PrfTable
-        title="Per-class precision, recall, F1 · clean vs noisy"
+        title="Per-class precision, recall, F1 Â· clean vs noisy"
         sub="Support is the denominator for recall"
         nameHeader="Class"
         clean={new Map(clean.metrics.per_class.map((c) => [c.label, c]))}
@@ -274,10 +274,10 @@ function ContinuousNoise({ clean, noisy }: { clean: ContinuousRun; noisy: Contin
 function ContinuousNoiseDetail({ clean, noisy }: { clean: ContinuousRun; noisy: ContinuousRun }) {
   return (
     <PrfTable
-      title="Per-Keyword events · clean vs noisy"
+      title="Per-Keyword events Â· clean vs noisy"
       sub={
         <>
-          Experimental window Detector at the frozen ±{clean.detector.tolerance_s} s tolerance. Unlabeled gaps
+          Experimental window Detector at the frozen Â±{clean.detector.tolerance_s} s tolerance. Unlabeled gaps
           are excluded from negative exposure ({formatNumber(clean.composition.unlabeled_seconds, 0)} s here).
         </>
       }

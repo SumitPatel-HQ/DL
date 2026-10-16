@@ -66,7 +66,10 @@ backend stores `external_<status>` on the live event and a separate audit trail
 for consent, accepted/rejected decisions, attempts and native outcomes.
 
 `GET /api/external-actions/logs?limit=100` returns the newest audit rows, up to
-500 per request. `GET /api/external-actions/negative-reports` returns the latest
+500 per request; use `before_id` to page through older rows. Consent entries
+include sanitized target label/kind, allowed actions and checkpoint/policy
+provenance in `details`, so opaque IDs remain auditable after restart.
+`GET /api/external-actions/negative-reports` returns the latest
 100 persisted reports. Both use the existing loopback host/origin restrictions.
 Neither accepts executable content. Raw microphone audio is never stored.
 
