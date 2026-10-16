@@ -27,6 +27,7 @@ from ml.spotting import (
     detect,
     score_windows,
     spot_audio,
+    window_levels_db,
     window_starts,
 )
 
@@ -129,6 +130,33 @@ def test_selected_keywords_only_and_untrained_words_refused() -> None:
         detect(windows, DetectorConfig(0.2, 0.5, 1))
 
 
+def test_margin_rejects_windows_without_a_distinct_peak() -> None:
+    windows = scores(("left", 0.55), ("silence", 0.9), ("left", 0.55))
+    # The first window's runner-up (Unknown) is close; the last window has a clear peak.
+    windows.probabilities[0, LABELS.index("unknown")] = 0.45
+    config = DetectorConfig(STRIDE, 0.5, 1, suppression_s=0)
+    assert len(detect(windows, config)) == 2
+    strict = DetectorConfig(STRIDE, 0.5, 1, suppression_s=0, margin=0.2)
+    assert [d.start_s for d in detect(windows, strict)] == [0.5]
+
+
+def test_level_gate_drops_quiet_windows_and_needs_levels() -> None:
+    windows = scores(("go", 0.9), ("silence", 0.9), ("go", 0.9))
+    gated = WindowScores(windows.starts_s, windows.probabilities, STRIDE, np.array([3.0, 0, 20.0]))
+    config = DetectorConfig(STRIDE, 0.5, 1, suppression_s=0, min_level_db=12)
+    assert [d.start_s for d in detect(gated, config)] == [0.5]
+    with pytest.raises(ValueError):
+        detect(windows, config)
+
+
+def test_window_levels_are_relative_to_the_recording_floor() -> None:
+    audio = np.full(48000, 1e-4, dtype=np.float32)
+    audio[16000:32000] = 0.1
+    levels = window_levels_db(audio, np.array([0, 16000, 32000]))
+    assert levels[0] == pytest.approx(0, abs=1e-6)
+    assert levels[1] == pytest.approx(60, abs=0.5)
+
+
 def test_detector_config_rejects_invalid_parameters() -> None:
     for kwargs in (
         {"window_s": 0.5},
@@ -136,6 +164,8 @@ def test_detector_config_rejects_invalid_parameters() -> None:
         {"stride_s": 1.5},
         {"threshold": 1.0},
         {"min_consecutive": 0},
+        {"margin": 1.0},
+        {"min_level_db": -1.0},
     ):
         with pytest.raises(ValueError):
             DetectorConfig(**kwargs)

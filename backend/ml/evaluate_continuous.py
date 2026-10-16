@@ -43,6 +43,8 @@ GRID: dict[str, tuple[Any, ...]] = {
     "stride_s": (0.2, 0.25),
     "threshold": tuple(round(0.3 + 0.05 * i, 2) for i in range(14)),
     "min_consecutive": (1, 2, 3),
+    "margin": (0.0, 0.3, 0.5, 0.7),
+    "min_level_db": (0.0, 6.0, 12.0, 18.0),
 }
 # Not tuned: one window width, so one spoken Keyword yields at most one Detection.
 SUPPRESSION_S = 1.0
@@ -245,10 +247,17 @@ def tune(loaded: LoadedModel, data: ContinuousSplit) -> dict[str, Any]:
     candidates = []
     for stride_s in GRID["stride_s"]:
         scores, _ = all_scores(loaded, data, stride_s)
-        for threshold, min_consecutive in itertools.product(
-            GRID["threshold"], GRID["min_consecutive"]
+        for threshold, min_consecutive, margin, min_level_db in itertools.product(
+            GRID["threshold"], GRID["min_consecutive"], GRID["margin"], GRID["min_level_db"]
         ):
-            config = DetectorConfig(stride_s, threshold, min_consecutive, SUPPRESSION_S)
+            config = DetectorConfig(
+                stride_s,
+                threshold,
+                min_consecutive,
+                SUPPRESSION_S,
+                margin=margin,
+                min_level_db=min_level_db,
+            )
             summary, _, _ = evaluate_scores(data, scores, config, TOLERANCE_S, loaded.labels)
             candidates.append((config, summary))
     candidates.sort(
@@ -256,6 +265,8 @@ def tune(loaded: LoadedModel, data: ContinuousSplit) -> dict[str, Any]:
             -item[1]["f1"],
             item[1]["false_alarms"]["count"],
             -item[0].threshold,
+            -item[0].margin,
+            -item[0].min_level_db,
             -item[0].min_consecutive,
             -item[0].stride_s,
         )
@@ -278,7 +289,7 @@ def tune(loaded: LoadedModel, data: ContinuousSplit) -> dict[str, Any]:
         "tolerance_s": TOLERANCE_S,
         "tuned_on": dataset_info(data),
         "objective": "max validation event-F1; ties: fewer false alarms, higher threshold, "
-        f"more consecutive windows, larger stride; suppression fixed at {SUPPRESSION_S} s",
+        f"larger margin, higher level gate, more consecutive windows, larger stride; suppression fixed at {SUPPRESSION_S} s",
         "grid": {key: list(values) for key, values in GRID.items()},
         "selected": row(best_config, best),
         "top_candidates": [row(c, s) for c, s in candidates[:10]],

@@ -10,8 +10,8 @@ ROOT = Path(__file__).resolve().parents[2]
 @dataclass(frozen=True)
 class Settings:
     storage: Path = ROOT / "data" / "service"
-    checkpoint: Path = ROOT / "artifacts" / "models" / "e02" / "model.pt"
-    detector: Path = ROOT / "docs" / "evaluations" / "continuous-v1" / "detector-e02.json"
+    checkpoint: Path = ROOT / "artifacts" / "models" / "live3" / "model.pt"
+    detector: Path = ROOT / "artifacts" / "models" / "live3" / "detector.json"
     evaluations: Path = ROOT / "docs" / "evaluations"
     max_upload_bytes: int = 40 * 1024 * 1024
     max_duration_s: float = 600

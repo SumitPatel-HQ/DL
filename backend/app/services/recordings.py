@@ -20,7 +20,15 @@ from app.settings import Settings
 from ml.checkpoint import LoadedModel, load_checkpoint
 from ml.features import FEATURE_CONFIG, LABELS
 from ml.features.pipeline import SAMPLE_RATE, WINDOW_SAMPLES, read_wav
-from ml.spotting import KEYWORDS, DetectorConfig, WindowScores, detect, score_windows, window_starts
+from ml.spotting import (
+    KEYWORDS,
+    DetectorConfig,
+    WindowScores,
+    detect,
+    score_windows,
+    window_levels_db,
+    window_starts,
+)
 from ml.vocabulary import VOCABULARY_REVIEW_ACTION
 
 EVIDENCE = "docs/evaluations/continuous-v1/e02-continuous-test.json"
@@ -369,7 +377,12 @@ class RecordingService:
             )
             chunks.append(scored.probabilities)
         detections = detect(
-            WindowScores(starts / SAMPLE_RATE, np.concatenate(chunks), self.config.stride_s),
+            WindowScores(
+                starts / SAMPLE_RATE,
+                np.concatenate(chunks),
+                self.config.stride_s,
+                window_levels_db(audio, starts),
+            ),
             self.config,
             tuple(current["keywords"]),
             self.loaded.labels,

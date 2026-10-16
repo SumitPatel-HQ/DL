@@ -2,6 +2,11 @@
 
 Experimental per ADR-0002: Detections are approximate spans from 1 s windows, and
 Confidence is the classifier's softmax score, not a measure of correctness.
+
+The isolated classifier is overconfident on fluent speech, so a window votes only
+when its top class also leads the runner-up by `margin` and the window is louder
+than the Recording's quiet floor by `min_level_db`. Both default to off so older
+detector files keep their behavior.
 """
 
 from dataclasses import asdict, dataclass
@@ -12,12 +17,22 @@ from numpy.typing import NDArray
 
 from ml.checkpoint import LoadedModel
 from ml.features import LABELS
-from ml.features.pipeline import SAMPLE_RATE, WINDOW_SAMPLES, Audio
+from ml.features.pipeline import (
+    FRAME_SAMPLES,
+    HOP_SAMPLES,
+    SAMPLE_RATE,
+    WINDOW_SAMPLES,
+    Audio,
+)
 from ml.metrics import span_center
 from ml.vocabulary import keywords_for
 
 KEYWORDS = tuple(label for label in LABELS if label not in ("unknown", "silence"))
 WINDOW_S = WINDOW_SAMPLES / SAMPLE_RATE
+# Quiet floor: this percentile of 25 ms frame levels over the whole Recording.
+FLOOR_PERCENTILE = 10
+# Window level: this percentile of its own frame levels, so one loud syllable counts.
+WINDOW_LEVEL_PERCENTILE = 95
 
 
 @dataclass(frozen=True)
@@ -29,6 +44,8 @@ class DetectorConfig:
     min_consecutive: int = 2
     suppression_s: float = 1.0
     window_s: float = WINDOW_S
+    margin: float = 0.0
+    min_level_db: float = 0.0
 
     def __post_init__(self) -> None:
         if self.window_s != WINDOW_S:
@@ -39,6 +56,8 @@ class DetectorConfig:
             raise ValueError("Stride must be a whole number of samples")
         if not 0 < self.threshold < 1 or self.min_consecutive < 1 or self.suppression_s < 0:
             raise ValueError("Expected threshold in (0, 1), min_consecutive >= 1, suppression >= 0")
+        if not 0 <= self.margin < 1 or self.min_level_db < 0:
+            raise ValueError("Expected margin in [0, 1) and min_level_db >= 0")
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -68,12 +87,32 @@ class WindowScores:
     starts_s: NDArray[np.float64]
     probabilities: NDArray[np.float32]
     stride_s: float
+    levels_db: NDArray[np.float64] | None = None
 
 
 def window_starts(n_samples: int, stride_s: float) -> NDArray[np.int64]:
     """Window start samples; audio shorter than one window yields one padded window."""
     stride = round(stride_s * SAMPLE_RATE)
     return np.arange(0, max(n_samples - WINDOW_SAMPLES, 0) + 1, stride, dtype=np.int64)
+
+
+def window_levels_db(audio: Audio, starts: NDArray[np.int64]) -> NDArray[np.float64]:
+    """Each window's loud-frame level in dB above the whole Recording's quiet floor."""
+    if len(audio) < FRAME_SAMPLES:
+        return np.zeros(len(starts))
+    frames = np.lib.stride_tricks.sliding_window_view(audio, FRAME_SAMPLES)[::HOP_SAMPLES]
+    levels = 10 * np.log10(np.mean(frames.astype(np.float64) ** 2, axis=1) + 1e-12)
+    floor = np.percentile(levels, FLOOR_PERCENTILE)
+    span = WINDOW_SAMPLES // HOP_SAMPLES
+    return np.array(
+        [
+            np.percentile(levels[s // HOP_SAMPLES : s // HOP_SAMPLES + span], WINDOW_LEVEL_PERCENTILE)
+            - floor
+            if s // HOP_SAMPLES < len(levels)
+            else 0.0
+            for s in starts
+        ]
+    )
 
 
 def score_windows(
@@ -93,7 +132,9 @@ def score_windows(
             ]
         )
         chunks.append(loaded.probabilities(features))
-    return WindowScores(starts / SAMPLE_RATE, np.concatenate(chunks), stride_s)
+    return WindowScores(
+        starts / SAMPLE_RATE, np.concatenate(chunks), stride_s, window_levels_db(audio, starts)
+    )
 
 
 def detect(
@@ -102,10 +143,12 @@ def detect(
     keywords: tuple[str, ...] = KEYWORDS,
     labels: tuple[str, ...] = LABELS,
 ) -> list[Detection]:
-    """Threshold, adjacent-window consistency, merging and duplicate suppression.
+    """Threshold, margin, level gate, adjacent-window consistency, merging and suppression.
 
-    A window votes for a Keyword only when that Keyword is its top class and its
-    score reaches the threshold, so Unknown and Silence can reject it. Runs of
+    A window votes for a Keyword only when that Keyword is its top class, its
+    score reaches the threshold, it leads the runner-up class by `margin`, and the
+    window is at least `min_level_db` above the Recording's quiet floor, so
+    Unknown, Silence and quiet background can reject it. Runs of
     consecutive votes for one Keyword merge into one candidate spanning their
     windows; runs shorter than `min_consecutive` are dropped. Candidates for the
     same Keyword whose centers lie closer than `suppression_s` keep only the most
@@ -117,10 +160,18 @@ def detect(
         raise ValueError("Detections are only available for trained Keywords")
     if scores.probabilities.shape != (len(scores.starts_s), len(labels)):
         raise ValueError("Window scores do not match the label list")
+    if config.min_level_db > 0 and scores.levels_db is None:
+        raise ValueError("The level gate needs window levels")
     top = scores.probabilities.argmax(axis=1)
-    top_score = scores.probabilities.max(axis=1)
+    ranked = np.sort(scores.probabilities, axis=1)
+    top_score = ranked[:, -1]
+    runner_up = ranked[:, -2] if len(labels) > 1 else np.zeros_like(top_score)
     wanted = [labels.index(keyword) for keyword in keywords]
-    votes = np.where(np.isin(top, wanted) & (top_score >= config.threshold), top, -1)
+    passes = (top_score >= config.threshold) & (top_score - runner_up >= config.margin)
+    if config.min_level_db > 0:
+        assert scores.levels_db is not None
+        passes &= scores.levels_db >= config.min_level_db
+    votes = np.where(np.isin(top, wanted) & passes, top, -1)
     candidates = []
     first = 0
     for i in range(1, len(votes) + 1):

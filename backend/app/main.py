@@ -6,7 +6,7 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, RedirectResponse
 
 from app.api.evaluations import router as evaluations_router
 from app.api.health import router as health_router
@@ -72,6 +72,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return JSONResponse(
             {"error": {"code": "persistence_error", "message": "Metadata operation failed."}}, 503
         )
+
+    @application.get("/health", include_in_schema=False)
+    def health_redirect() -> RedirectResponse:
+        return RedirectResponse(url="/api/health")
 
     application.include_router(health_router)
     application.include_router(recordings_router)

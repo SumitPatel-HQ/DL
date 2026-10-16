@@ -24,7 +24,9 @@ from app.settings import Settings
 from ml.features import LABELS
 
 LIVE = "ws://127.0.0.1/api/live"
-POLICY = LivePolicy(hop_s=0.25, threshold=0.7, min_consecutive=2, cooldown_s=1.2)
+POLICY = LivePolicy(
+    hop_s=0.25, threshold=0.7, margin=0.0, smooth_windows=1, min_consecutive=2, cooldown_s=1.2
+)
 
 
 def scores(label: str, score: float) -> list[float]:
@@ -121,7 +123,9 @@ def test_reset_ends_the_utterance_but_keeps_cooldown() -> None:
 
 
 def pcm(seconds: float, rate: int = 16000) -> bytes:
-    return np.zeros(int(seconds * rate), dtype="<i2").tobytes()
+    """A -20 dBFS tone: loud enough to pass the live RMS gate."""
+    t = np.arange(int(seconds * rate)) / rate
+    return (3000 * np.sin(2 * np.pi * 440 * t)).astype("<i2").tobytes()
 
 
 def push(stream: LiveStream, data: bytes) -> None:
@@ -310,3 +314,37 @@ def test_client_disconnect_releases_the_session(tmp_path: Path) -> None:
         with client.websocket_connect(LIVE) as socket:
             socket.send_json(start())
             until(socket, "ready")
+
+
+
+def test_margin_rejects_keywords_that_barely_beat_unknown() -> None:
+    policy = LivePolicy(threshold=0.5, margin=0.3, smooth_windows=1, min_consecutive=2)
+    near = [0.0] * len(LABELS)
+    near[LABELS.index("go")], near[LABELS.index("unknown")] = 0.55, 0.45
+    decider = LiveDecider(policy)
+    decisions = [d for i in range(4) for d in decider.observe(1.0 + i * 0.25, near)]
+    assert not [d for d in decisions if d.accepted]
+
+
+def test_smoothing_ignores_a_single_confident_spike() -> None:
+    policy = LivePolicy(threshold=0.7, margin=0.0, smooth_windows=2, min_consecutive=2)
+    decider = LiveDecider(policy)
+    rows = [scores("unknown", 0.9), scores("go", 0.95), scores("unknown", 0.9), scores("unknown", 0.9)]
+    decisions = [d for i, row in enumerate(rows) for d in decider.observe(1.0 + i * 0.25, row)]
+    assert not [d for d in decisions if d.accepted]
+
+
+def test_quiet_windows_are_silence_without_running_the_model(tmp_path: Path) -> None:
+    from app.services.live import LiveService
+
+    class Loaded:
+        labels = LABELS
+
+        def pipeline(self) -> Any:
+            raise AssertionError("model must not run on gated windows")
+
+    service = LiveService.__new__(LiveService)
+    service.policy = LivePolicy()
+    service.recordings = type("R", (), {"loaded": Loaded()})()  # type: ignore[assignment]
+    rows = service.score([np.full(16000, 1e-4, dtype=np.float32)])
+    assert LABELS[int(np.argmax(rows[0]))] == "silence"

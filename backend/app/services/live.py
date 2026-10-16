@@ -6,6 +6,7 @@ raw mic audio is never written anywhere. Per ADR-0003 and ADR-0004.
 """
 
 import sqlite3
+from collections import deque
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field
 from typing import Any
@@ -47,10 +48,18 @@ ACTION_BY_KEYWORD = {mapping.keyword: mapping.action for mapping in KEYWORD_ACTI
 
 @dataclass(frozen=True)
 class LivePolicy:
-    """Initial live operating point. Not tuned on validation data yet."""
+    """Live operating point.
+
+    `margin`: a Keyword must beat both Unknown and Silence by this much.
+    `smooth_windows`: window scores are averaged over this many hops before argmax.
+    `rms_gate_dbfs`: windows quieter than this are Silence without running the model.
+    """
 
     hop_s: float = 0.25
     threshold: float = 0.7
+    margin: float = 0.3
+    smooth_windows: int = 2
+    rms_gate_dbfs: float = -50.0
     min_consecutive: int = 2
     cooldown_s: float = 1.2
     max_lag_s: float = 1.0
@@ -76,7 +85,9 @@ class LiveDecider:
 
     Consecutive windows with the same top label form one run. A Keyword run is
     accepted once `min_consecutive` windows in a row reach the threshold and the
-    cooldown since the last accepted action has expired. A run that never gets
+    cooldown since the last accepted action has expired. A window only counts toward
+    the streak when its Keyword also beats Unknown and Silence by `margin`. Scores
+    are averaged over `smooth_windows` hops first. A run that never gets
     there is rejected as low Confidence when it ends. Unknown and Silence runs
     are rejected once, as soon as they start. Later windows of a decided run
     are ignored, so one utterance can cause at most one action.
@@ -86,10 +97,13 @@ class LiveDecider:
         self.policy = policy
         self.labels = tuple(labels)
         self.last_accept_s: float | None = None
+        self.history: deque[NDArray[np.float32]] = deque(maxlen=max(1, policy.smooth_windows))
         self.reset()
 
-    def reset(self) -> None:
+    def reset(self, keep_history: bool = False) -> None:
         """End the current run without a decision. Cooldown is kept."""
+        if not keep_history:
+            self.history.clear()
         self.run_label: str | None = None
         self.decided = False
         self.streak = 0
@@ -97,15 +111,21 @@ class LiveDecider:
         self.last_s = 0.0
 
     def observe(self, t_s: float, scores: Sequence[float] | NDArray[np.float32]) -> list[Decision]:
-        index = int(np.argmax(scores))
-        label, score = self.labels[index], float(scores[index])
+        self.history.append(np.asarray(scores, dtype=np.float32))
+        smoothed = np.mean(self.history, axis=0)
+        index = int(np.argmax(smoothed))
+        label, score = self.labels[index], float(smoothed[index])
+        rejected = max(
+            (float(smoothed[i]) for i, name in enumerate(self.labels) if name not in ACTION_BY_KEYWORD),
+            default=0.0,
+        )
         decisions = []
         if label != self.run_label:
             if self.run_label in ACTION_BY_KEYWORD and not self.decided:
                 decisions.append(
                     Decision(self.last_s, self.run_label, self.best, False, "low_confidence", None)
                 )
-            self.reset()
+            self.reset(keep_history=True)
             self.run_label = label
         self.last_s = t_s
         self.best = max(self.best, score)
@@ -115,7 +135,8 @@ class LiveDecider:
             self.decided = True
             decisions.append(Decision(t_s, label, score, False, label, None))
             return decisions
-        self.streak = self.streak + 1 if score >= self.policy.threshold else 0
+        confident = score >= self.policy.threshold and score - rejected >= self.policy.margin
+        self.streak = self.streak + 1 if confident else 0
         if self.streak >= self.policy.min_consecutive:
             self.decided = True
             last = self.last_accept_s
@@ -127,6 +148,10 @@ class LiveDecider:
                     Decision(t_s, label, self.best, True, "accepted", ACTION_BY_KEYWORD[label])
                 )
         return decisions
+
+
+def window_rms(audio: NDArray[np.float32]) -> float:
+    return float(np.sqrt(np.mean(np.square(audio, dtype=np.float64)))) if audio.size else 0.0
 
 
 @dataclass(frozen=True)
@@ -232,10 +257,16 @@ class LiveService:
         loaded = self.recordings.loaded
         if loaded is None:
             raise RuntimeError("Model is unavailable")
-        pipeline = loaded.pipeline()
-        return loaded.probabilities(
-            np.stack([pipeline.from_audio(w, SAMPLE_RATE) for w in windows])
-        )
+        gate = 10 ** (self.policy.rms_gate_dbfs / 20)
+        loud = [i for i, w in enumerate(windows) if window_rms(w) >= gate]
+        result = np.zeros((len(windows), len(loaded.labels)), dtype=np.float32)
+        result[:, loaded.labels.index("silence")] = 1.0
+        if loud:
+            pipeline = loaded.pipeline()
+            result[loud] = loaded.probabilities(
+                np.stack([pipeline.from_audio(windows[i], SAMPLE_RATE) for i in loud])
+            )
+        return result
 
     def labels(self) -> tuple[str, ...]:
         loaded = self.recordings.loaded
