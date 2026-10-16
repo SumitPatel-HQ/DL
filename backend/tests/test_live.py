@@ -326,6 +326,16 @@ def test_margin_rejects_keywords_that_barely_beat_unknown() -> None:
     assert not [d for d in decisions if d.accepted]
 
 
+def test_margin_counts_other_keywords_like_the_recording_detector() -> None:
+    policy = LivePolicy(threshold=0.4, margin=0.3, smooth_windows=1, min_consecutive=2)
+    close = [0.0] * len(LABELS)
+    close[LABELS.index("go")], close[LABELS.index("stop")] = 0.5, 0.45
+    close[LABELS.index("unknown")] = 0.05
+    decider = LiveDecider(policy)
+    decisions = [d for i in range(4) for d in decider.observe(1.0 + i * 0.25, close)]
+    assert not [d for d in decisions if d.accepted]
+
+
 def test_smoothing_ignores_a_single_confident_spike() -> None:
     policy = LivePolicy(threshold=0.7, margin=0.0, smooth_windows=2, min_consecutive=2)
     decider = LiveDecider(policy)

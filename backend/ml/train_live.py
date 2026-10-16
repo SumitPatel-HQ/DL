@@ -34,18 +34,24 @@ from ml.features.pipeline import (
     HOP_SAMPLES,
     LABELS,
     WINDOW_SAMPLES,
+    Audio,
     FeaturePipeline,
     read_wav,
 )
 from ml.networks import LstmClassifier, parameter_count
 from ml.runtime import code_revision, seed_everything
+from ml.vocabulary import keywords_for
 
-KEYWORDS = ("left", "right", "up", "down", "go", "stop")
-Audio = NDArray[np.float32]
+KEYWORDS = keywords_for(LABELS)
 
 
 def speaker_of(path: Path) -> str:
     return path.name.split("_nohash_")[0]
+
+
+def keyword_count(labels: list[int]) -> int:
+    """Median clips per Keyword: the unit for Silence and synthetic Unknown counts."""
+    return int(np.median([labels.count(i) for i in range(len(KEYWORDS))]))
 
 
 def unknown_words(root: Path) -> tuple[str, ...]:
@@ -89,7 +95,8 @@ def load_clips(
 
 
 HOLDOUT_WORDS = frozenset(
-    "hello hi okay testing computer yellow morning low below follow row open pause dawn town".split()
+    "hello hi okay testing computer yellow morning low below follow row open pause dawn town"
+    .split()
 )
 
 
@@ -164,6 +171,8 @@ def load_ami(ami_dir: Path, role: str, seed: int) -> tuple[list[Audio], list[int
         first_frames = np.minimum(starts // HOP_SAMPLES, len(frames))
         last_frames = np.minimum(first_frames + span, len(frames))
         clean = starts[keyword_frames[last_frames] == keyword_frames[first_frames]]
+        if len(clean) == 0:  # short or Keyword-dense meeting: no negatives to draw
+            continue
         chosen = rng.choice(clean, min(AMI_NEGATIVES_PER_MEETING, len(clean)), replace=False)
         windows = [audio[s : s + WINDOW_SAMPLES].copy() for s in chosen]
         rms = np.array([np.sqrt(np.mean(w**2)) + 1e-9 for w in windows])
@@ -254,7 +263,8 @@ def make_silence(noises: list[Audio], rng: np.random.Generator) -> Audio:
         audio = noise_crop(noises, rng) * 10 ** rng.uniform(-2.5, 0.3)
     else:
         audio = synthetic_noise(rng)
-    return np.clip(audio, -1, 1).astype(np.float32)
+    silence: Audio = np.clip(audio, -1, 1).astype(np.float32)
+    return silence
 
 
 # Worker-process state, set once by `init_worker`: noise recordings and the pipeline.
@@ -383,7 +393,8 @@ def train_model(
     val_clips, val_labels = load_clips(root, "validation", unknown_cap, pool)
     tts_train, tts_train_labels, tts_val, tts_val_labels = load_tts(tts, holdout)
     unknown = LABELS.index("unknown")
-    per_keyword = train_labels.count(0) + tts_train_labels.count(0)
+    per_keyword = keyword_count(train_labels + tts_train_labels)
+    val_per_keyword = keyword_count(val_labels + tts_val_labels)
     # Real unknown words are always drawn; synthetic ones are subsampled to about one
     # keyword's worth per epoch so the model cannot tell real from synthetic by domain.
     tts_unknown = max(1, tts_train_labels.count(unknown))
@@ -420,7 +431,13 @@ def train_model(
         start_epoch(
             pool,
             *epoch_tasks(
-                val_clips, val_labels, "validation", val_rng, 2 * per_keyword, val_keep, val_real
+                val_clips,
+                val_labels,
+                "validation",
+                val_rng,
+                2 * val_per_keyword,
+                val_keep,
+                val_real,
             ),
         )
     )
@@ -459,7 +476,12 @@ def train_model(
             val_loss = float(nn.functional.cross_entropy(logits, y_val))
             val_acc = float((logits.argmax(1) == y_val).float().mean())
         history.append(
-            {"epoch": epoch, "train_loss": loss_sum / len(x), "val_loss": val_loss, "val_acc": val_acc}
+            {
+                "epoch": epoch,
+                "train_loss": loss_sum / len(x),
+                "val_loss": val_loss,
+                "val_acc": val_acc,
+            }
         )
         print(history[-1], flush=True)
         if val_loss < best_loss:

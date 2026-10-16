@@ -17,7 +17,7 @@ from numpy.typing import NDArray
 from app.services.recordings import RecordingService
 from ml.features import LABELS
 from ml.features.pipeline import SAMPLE_RATE, WINDOW_SAMPLES, canonical_audio
-from ml.spotting import WINDOW_S
+from ml.spotting import WINDOW_S, peak_margin
 
 PROTOCOL_VERSION = 1
 ENCODING = "pcm_s16le"
@@ -50,9 +50,12 @@ ACTION_BY_KEYWORD = {mapping.keyword: mapping.action for mapping in KEYWORD_ACTI
 class LivePolicy:
     """Live operating point.
 
-    `margin`: a Keyword must beat both Unknown and Silence by this much.
+    `margin`: a Keyword must beat the runner-up class (any other label) by this much,
+    the same rule `ml.spotting.detect` applies to Recordings.
     `smooth_windows`: window scores are averaged over this many hops before argmax.
     `rms_gate_dbfs`: windows quieter than this are Silence without running the model.
+    Live audio has no whole-Recording floor to measure against, so this gate is an
+    absolute level, unlike the Recording detector's floor-relative `min_level_db`.
     """
 
     hop_s: float = 0.25
@@ -86,7 +89,7 @@ class LiveDecider:
     Consecutive windows with the same top label form one run. A Keyword run is
     accepted once `min_consecutive` windows in a row reach the threshold and the
     cooldown since the last accepted action has expired. A window only counts toward
-    the streak when its Keyword also beats Unknown and Silence by `margin`. Scores
+    the streak when its Keyword also beats the runner-up class by `margin`. Scores
     are averaged over `smooth_windows` hops first. A run that never gets
     there is rejected as low Confidence when it ends. Unknown and Silence runs
     are rejected once, as soon as they start. Later windows of a decided run
@@ -115,10 +118,6 @@ class LiveDecider:
         smoothed = np.mean(self.history, axis=0)
         index = int(np.argmax(smoothed))
         label, score = self.labels[index], float(smoothed[index])
-        rejected = max(
-            (float(smoothed[i]) for i, name in enumerate(self.labels) if name not in ACTION_BY_KEYWORD),
-            default=0.0,
-        )
         decisions = []
         if label != self.run_label:
             if self.run_label in ACTION_BY_KEYWORD and not self.decided:
@@ -135,7 +134,9 @@ class LiveDecider:
             self.decided = True
             decisions.append(Decision(t_s, label, score, False, label, None))
             return decisions
-        confident = score >= self.policy.threshold and score - rejected >= self.policy.margin
+        confident = (
+            score >= self.policy.threshold and float(peak_margin(smoothed)) >= self.policy.margin
+        )
         self.streak = self.streak + 1 if confident else 0
         if self.streak >= self.policy.min_consecutive:
             self.decided = True

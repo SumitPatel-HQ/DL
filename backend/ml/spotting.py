@@ -31,6 +31,10 @@ KEYWORDS = tuple(label for label in LABELS if label not in ("unknown", "silence"
 WINDOW_S = WINDOW_SAMPLES / SAMPLE_RATE
 # Quiet floor: this percentile of 25 ms frame levels over the whole Recording.
 FLOOR_PERCENTILE = 10
+# The floor is clamped to this dBFS range: digital silence cannot drag it to -120 dB
+# (every window would pass), and a Recording with no pauses cannot raise it to speech
+# level (every Keyword would fail).
+FLOOR_RANGE_DBFS = (-70.0, -50.0)
 # Window level: this percentile of its own frame levels, so one loud syllable counts.
 WINDOW_LEVEL_PERCENTILE = 95
 
@@ -96,17 +100,28 @@ def window_starts(n_samples: int, stride_s: float) -> NDArray[np.int64]:
     return np.arange(0, max(n_samples - WINDOW_SAMPLES, 0) + 1, stride, dtype=np.int64)
 
 
+def peak_margin(probabilities: NDArray[np.float32]) -> NDArray[np.float32]:
+    """Top score minus the runner-up class, per row. Shared by Recordings and live."""
+    if probabilities.shape[-1] < 2:
+        return np.asarray(probabilities.max(axis=-1), dtype=np.float32)
+    ranked = np.sort(probabilities, axis=-1)
+    return np.asarray(ranked[..., -1] - ranked[..., -2], dtype=np.float32)
+
+
 def window_levels_db(audio: Audio, starts: NDArray[np.int64]) -> NDArray[np.float64]:
-    """Each window's loud-frame level in dB above the whole Recording's quiet floor."""
+    """Each window's loud-frame level in dB above the Recording's clamped quiet floor."""
     if len(audio) < FRAME_SAMPLES:
         return np.zeros(len(starts))
     frames = np.lib.stride_tricks.sliding_window_view(audio, FRAME_SAMPLES)[::HOP_SAMPLES]
     levels = 10 * np.log10(np.mean(frames.astype(np.float64) ** 2, axis=1) + 1e-12)
-    floor = np.percentile(levels, FLOOR_PERCENTILE)
-    span = WINDOW_SAMPLES // HOP_SAMPLES
+    floor = np.clip(np.percentile(levels, FLOOR_PERCENTILE), *FLOOR_RANGE_DBFS)
+    # Frames that lie wholly inside the window; later frames run past its end.
+    span = (WINDOW_SAMPLES - FRAME_SAMPLES) // HOP_SAMPLES + 1
     return np.array(
         [
-            np.percentile(levels[s // HOP_SAMPLES : s // HOP_SAMPLES + span], WINDOW_LEVEL_PERCENTILE)
+            np.percentile(
+                levels[s // HOP_SAMPLES : s // HOP_SAMPLES + span], WINDOW_LEVEL_PERCENTILE
+            )
             - floor
             if s // HOP_SAMPLES < len(levels)
             else 0.0
@@ -116,9 +131,17 @@ def window_levels_db(audio: Audio, starts: NDArray[np.int64]) -> NDArray[np.floa
 
 
 def score_windows(
-    loaded: LoadedModel, audio: Audio, stride_s: float, batch_size: int = 256
+    loaded: LoadedModel,
+    audio: Audio,
+    stride_s: float,
+    batch_size: int = 256,
+    levels: bool = True,
 ) -> WindowScores:
-    """Run the shared feature pipeline and model on every window of canonical audio."""
+    """Run the shared feature pipeline and model on every window of canonical audio.
+
+    `levels=False` skips window levels, for callers that score chunks of a Recording
+    and compute levels once over the whole audio.
+    """
     if audio.ndim != 1 or audio.dtype != np.float32 or audio.size == 0:
         raise ValueError("Expected non-empty canonical mono float32 audio")
     pipeline = loaded.pipeline()
@@ -133,7 +156,10 @@ def score_windows(
         )
         chunks.append(loaded.probabilities(features))
     return WindowScores(
-        starts / SAMPLE_RATE, np.concatenate(chunks), stride_s, window_levels_db(audio, starts)
+        starts / SAMPLE_RATE,
+        np.concatenate(chunks),
+        stride_s,
+        window_levels_db(audio, starts) if levels else None,
     )
 
 
@@ -163,11 +189,9 @@ def detect(
     if config.min_level_db > 0 and scores.levels_db is None:
         raise ValueError("The level gate needs window levels")
     top = scores.probabilities.argmax(axis=1)
-    ranked = np.sort(scores.probabilities, axis=1)
-    top_score = ranked[:, -1]
-    runner_up = ranked[:, -2] if len(labels) > 1 else np.zeros_like(top_score)
+    top_score = scores.probabilities.max(axis=1)
     wanted = [labels.index(keyword) for keyword in keywords]
-    passes = (top_score >= config.threshold) & (top_score - runner_up >= config.margin)
+    passes = (top_score >= config.threshold) & (peak_margin(scores.probabilities) >= config.margin)
     if config.min_level_db > 0:
         assert scores.levels_db is not None
         passes &= scores.levels_db >= config.min_level_db

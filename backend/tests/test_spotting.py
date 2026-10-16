@@ -150,11 +150,25 @@ def test_level_gate_drops_quiet_windows_and_needs_levels() -> None:
 
 
 def test_window_levels_are_relative_to_the_recording_floor() -> None:
-    audio = np.full(48000, 1e-4, dtype=np.float32)
-    audio[16000:32000] = 0.1
+    audio = np.full(48000, 1e-3, dtype=np.float32)  # -60 dBFS floor
+    audio[16000:32000] = 0.1  # -20 dBFS
     levels = window_levels_db(audio, np.array([0, 16000, 32000]))
     assert levels[0] == pytest.approx(0, abs=1e-6)
-    assert levels[1] == pytest.approx(60, abs=0.5)
+    assert levels[1] == pytest.approx(40, abs=0.5)
+
+
+def test_window_level_floor_is_clamped_for_silence_padding_and_pauseless_speech() -> None:
+    padded = np.zeros(48000, dtype=np.float32)  # digital silence: floor would be -120 dB
+    padded[16000:32000] = 0.1
+    assert window_levels_db(padded, np.array([16000]))[0] == pytest.approx(50, abs=0.5)
+    pauseless = np.full(48000, 0.1, dtype=np.float32)  # floor would sit at speech level
+    assert window_levels_db(pauseless, np.array([16000]))[0] == pytest.approx(30, abs=0.5)
+
+
+def test_window_level_ignores_sound_after_the_window_ends() -> None:
+    audio = np.full(48000, 1e-3, dtype=np.float32)
+    audio[16000:16200] = 0.5  # loud click inside the last frame's overhang
+    assert window_levels_db(audio, np.array([0]))[0] == pytest.approx(0, abs=1e-6)
 
 
 def test_detector_config_rejects_invalid_parameters() -> None:

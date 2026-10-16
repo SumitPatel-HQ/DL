@@ -322,3 +322,13 @@ def test_noise_mixing_rejects_empty_noise_and_hits_the_target_snr() -> None:
     added = mixed - signal
     snr = 20 * np.log10(np.sqrt(np.mean(signal**2)) / np.sqrt(np.mean(added**2)))
     assert snr == pytest.approx(10.0, abs=0.1)
+
+
+def test_live_training_balance_uses_the_median_keyword_count() -> None:
+    from ml.train_live import KEYWORDS, keyword_count
+    from ml.vocabulary import keywords_for
+
+    assert KEYWORDS == keywords_for(LABELS)
+    # 'left' (label 0) is rare here; the median keeps Silence/TTS balance from collapsing.
+    labels = [0] * 2 + [1] * 10 + [2] * 10 + [3] * 12 + [4] * 10 + [5] * 9 + [6] * 50
+    assert keyword_count(labels) == 10

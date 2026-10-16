@@ -16,7 +16,7 @@ import numpy as np
 from app.constants import MODEL_SETUP_ACTION
 from app.db.store import ACTIVE_STATUSES, Store, is_active_status
 from app.errors import ServiceError
-from app.settings import Settings
+from app.settings import ROOT, Settings
 from ml.checkpoint import LoadedModel, load_checkpoint
 from ml.features import FEATURE_CONFIG, LABELS
 from ml.features.pipeline import SAMPLE_RATE, WINDOW_SAMPLES, read_wav
@@ -31,7 +31,6 @@ from ml.spotting import (
 )
 from ml.vocabulary import VOCABULARY_REVIEW_ACTION
 
-EVIDENCE = "docs/evaluations/continuous-v1/e02-continuous-test.json"
 LIMITATION = "Experimental sliding-window Detection; natural-speech feasibility target was not met."
 
 
@@ -79,6 +78,13 @@ class RecordingService:
                 continue
             if path.is_file() and path.name not in owned:
                 path.unlink()
+        # The detector file records how the active checkpoint and its config were measured.
+        detector_path = settings.detector.resolve()
+        self.evidence = (
+            detector_path.relative_to(ROOT).as_posix()
+            if detector_path.is_relative_to(ROOT)
+            else detector_path.as_posix()
+        )
         self.loaded: LoadedModel | None = None
         self.config: DetectorConfig | None = None
         self.model_error = "checkpoint_not_installed"
@@ -162,7 +168,7 @@ class RecordingService:
             "detector": asdict(self.config),
             "experimental": True,
             "limitation": LIMITATION,
-            "evaluation_evidence": EVIDENCE,
+            "evaluation_evidence": self.evidence,
         }
 
     def get(self, recording: str) -> dict[str, Any]:
@@ -254,7 +260,7 @@ class RecordingService:
             "timestamp_quality": "approximate_sliding_window",
             "experimental": True,
             "limitation": LIMITATION,
-            "evaluation_evidence": EVIDENCE,
+            "evaluation_evidence": self.evidence,
         }
 
     def audio_path(self, recording: str) -> Path:
@@ -374,6 +380,7 @@ class RecordingService:
                 audio[subset[0] : subset[-1] + WINDOW_SAMPLES],
                 self.config.stride_s,
                 batch_size=32,
+                levels=False,
             )
             chunks.append(scored.probabilities)
         detections = detect(

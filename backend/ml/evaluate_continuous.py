@@ -43,8 +43,12 @@ GRID: dict[str, tuple[Any, ...]] = {
     "stride_s": (0.2, 0.25),
     "threshold": tuple(round(0.3 + 0.05 * i, 2) for i in range(14)),
     "min_consecutive": (1, 2, 3),
-    "margin": (0.0, 0.3, 0.5, 0.7),
-    "min_level_db": (0.0, 6.0, 12.0, 18.0),
+}
+# Second stage, searched only around the first stage's best threshold/consistency
+# setting; the level range reaches well past the 18 dB the first hand-tuned files used.
+GATE_GRID: dict[str, tuple[Any, ...]] = {
+    "margin": (0.0, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8),
+    "min_level_db": (0.0, 6.0, 12.0, 18.0, 24.0, 30.0),
 }
 # Not tuned: one window width, so one spoken Keyword yields at most one Detection.
 SUPPRESSION_S = 1.0
@@ -241,36 +245,49 @@ def all_scores(
 
 
 def tune(loaded: LoadedModel, data: ContinuousSplit) -> dict[str, Any]:
-    """Grid search on validation: best event-F1, then fewest false alarms, then stricter."""
+    """Two-stage grid search on validation: best event-F1, then fewest false alarms,
+    then stricter settings.
+
+    Stage one searches stride, threshold and consistency with the gates off. Stage
+    two searches margin and level gate at the stage-one winner, instead of the full
+    product of all five parameters.
+    """
     if data.split != "validation":
         raise ValueError("Detector parameters may only be tuned on validation Recordings")
-    candidates = []
-    for stride_s in GRID["stride_s"]:
-        scores, _ = all_scores(loaded, data, stride_s)
-        for threshold, min_consecutive, margin, min_level_db in itertools.product(
-            GRID["threshold"], GRID["min_consecutive"], GRID["margin"], GRID["min_level_db"]
-        ):
-            config = DetectorConfig(
-                stride_s,
-                threshold,
-                min_consecutive,
-                SUPPRESSION_S,
-                margin=margin,
-                min_level_db=min_level_db,
-            )
-            summary, _, _ = evaluate_scores(data, scores, config, TOLERANCE_S, loaded.labels)
-            candidates.append((config, summary))
-    candidates.sort(
-        key=lambda item: (
-            -item[1]["f1"],
-            item[1]["false_alarms"]["count"],
-            -item[0].threshold,
-            -item[0].margin,
-            -item[0].min_level_db,
-            -item[0].min_consecutive,
-            -item[0].stride_s,
+
+    def rank(item: tuple[DetectorConfig, dict[str, Any]]) -> tuple[Any, ...]:
+        config, summary = item
+        return (
+            -summary["f1"],
+            summary["false_alarms"]["count"],
+            -config.threshold,
+            -config.margin,
+            -config.min_level_db,
+            -config.min_consecutive,
+            -config.stride_s,
         )
-    )
+
+    scores_by_stride = {s: all_scores(loaded, data, s)[0] for s in GRID["stride_s"]}
+
+    def evaluate(config: DetectorConfig) -> tuple[DetectorConfig, dict[str, Any]]:
+        scores = scores_by_stride[config.stride_s]
+        return config, evaluate_scores(data, scores, config, TOLERANCE_S, loaded.labels)[0]
+
+    candidates = [
+        evaluate(DetectorConfig(stride_s, threshold, min_consecutive, SUPPRESSION_S))
+        for stride_s, threshold, min_consecutive in itertools.product(
+            GRID["stride_s"], GRID["threshold"], GRID["min_consecutive"]
+        )
+    ]
+    stage_one = min(candidates, key=rank)[0]
+    candidates += [
+        evaluate(replace(stage_one, margin=margin, min_level_db=min_level_db))
+        for margin, min_level_db in itertools.product(
+            GATE_GRID["margin"], GATE_GRID["min_level_db"]
+        )
+        if (margin, min_level_db) != (0.0, 0.0)
+    ]
+    candidates.sort(key=rank)
     best_config, best = candidates[0]
 
     def row(config: DetectorConfig, summary: dict[str, Any]) -> dict[str, Any]:
@@ -289,8 +306,10 @@ def tune(loaded: LoadedModel, data: ContinuousSplit) -> dict[str, Any]:
         "tolerance_s": TOLERANCE_S,
         "tuned_on": dataset_info(data),
         "objective": "max validation event-F1; ties: fewer false alarms, higher threshold, "
-        f"larger margin, higher level gate, more consecutive windows, larger stride; suppression fixed at {SUPPRESSION_S} s",
-        "grid": {key: list(values) for key, values in GRID.items()},
+        "larger margin, higher level gate, more consecutive windows, larger stride; "
+        "gates searched at the stage-one winner only; "
+        f"suppression fixed at {SUPPRESSION_S} s",
+        "grid": {key: list(values) for key, values in {**GRID, **GATE_GRID}.items()},
         "selected": row(best_config, best),
         "top_candidates": [row(c, s) for c, s in candidates[:10]],
         "note": "Frozen before any test Evaluation Run. Validation metrics here are optimistic.",

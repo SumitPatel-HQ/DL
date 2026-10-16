@@ -133,6 +133,8 @@ def test_upload_analyze_playback_persist_and_delete(tmp_path: Path) -> None:
         active = client.get("/api/models/active").json()
         assert active["keywords"] == ["left", "right", "up", "down", "go", "stop"]
         assert active["experimental"] is True
+        # Evidence names the detector file of the model that is running, not a fixed E02 run.
+        assert active["evaluation_evidence"] == settings.detector.resolve().as_posix()
         audio = wav_bytes()
         response = client.post("/api/recordings", files={"file": ("go.wav", audio)})
         assert response.status_code == 201
