@@ -116,6 +116,20 @@ work needs verified labels and additional real Keyword tokens under the frozen
 validation/test protocol. A passing negative-session report does not authorize
 model promotion or change the event-F1 target.
 
+## Recorded validation
+
+Validation on 16 October 2026: `npm run check` passed with 159 backend tests
+and 31 frontend tests, including consent/injection rejection, native-call
+revocation, stale-generation completion, durable permission metadata, schema
+upgrade and short/interrupted negative reports. The production build passed
+after repair of pre-existing mixed-encoding punctuation in the noise view.
+Read-only native discovery found the Realtek speaker endpoint on the target
+Ryzen 5 5500U machine with 16,456,015,872 bytes of usable RAM. Browser checks
+used generated silence, not the real microphone, to verify target discovery,
+required action/acknowledgment checkboxes, external-off status until Enable,
+and Stop cleanup. No OS action, PowerPoint/media end-to-end trial or 30-minute
+microphone acceptance run is claimed by these checks.
+
 ## Native API references
 
 - [Pycaw Core Audio usage](https://github.com/AndreMiras/pycaw)
