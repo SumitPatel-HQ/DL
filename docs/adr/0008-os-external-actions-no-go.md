@@ -1,5 +1,8 @@
 # Keep OS and external actions out of the course deliverable
 
+Superseded by [ADR-0009](0009-experimental-opt-in-os-actions.md) at the project
+owner's explicit request. The historical gate evidence below remains valid.
+
 P2-02 combines optional Windows volume and external PowerPoint/media actions.
 The [parent spec](../P1&P2/P1&P2%20Spec.md) recommends `wontfix` when its
 quality gates are unmet. We take that path and retain

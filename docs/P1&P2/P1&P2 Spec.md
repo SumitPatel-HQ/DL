@@ -56,6 +56,13 @@ experimental until a frozen-protocol Evaluation Run says otherwise.
 
 ## Implementation Decisions
 
+P2-02 sequencing update, 16 October 2026: the project owner explicitly requested
+implementation despite the unmet gates. [ADR-0009](../adr/0009-experimental-opt-in-os-actions.md)
+supersedes ADR-0004's P2 restriction and ADR-0008's `wontfix` decision for
+off-by-default, explicitly acknowledged experimental use. The event-F1 and
+target-hardware false-action gates remain unchanged acceptance requirements;
+the earlier default-`wontfix` guidance below is superseded for P2-02 only.
+
 - **Ticket order (risk order, not PR-number order):** P1-01 CSV export → P1-02
   model comparison → P1-03 noise comparison (needs new dataset version) →
   P1-04 temporal prototype (promoted ex-PR-19, the ADR-0006 remediation) →

@@ -147,15 +147,22 @@ eleven-class dataset preparation, training and evaluation. New-word recordings
 and reviewed runs are still missing, so `next`, `pause`, and `urgent` remain gated.
 The app continues to serve the six Keywords from E02.
 
-P2-02 Windows system volume and external PowerPoint/media actions are
-`wontfix` for the course deliverable under
-[ADR-0008](docs/adr/0008-os-external-actions-no-go.md). The temporal event-F1
-gate is unmet, and the target of at most 1 false action per 30 minutes of
-controlled negative microphone testing remains unmeasured on target hardware.
-Voice Control requires Start listening and controls only the in-app demo;
-`up`/`down` do not change Windows volume. Reopening requires both measured
-gates to pass and a new ADR authorizing explicit OS consent, target/action
-permissions, and rollback. See the [ticket disposition](docs/P1&P2/06-os-external-actions.md).
+P2-02 adds optional Windows volume, existing PowerPoint slideshow and Windows
+media-session actions under [ADR-0009](docs/adr/0009-experimental-opt-in-os-actions.md).
+Start listening opens only the mic. In Voice Control, refresh targets, choose one,
+select its actions and explicitly consent to experimental OS control. `up/down`
+can then change the selected Windows endpoint's volume; `right/left` can change
+slides; `go/stop` can play/pause the selected media session. Only one target is
+permitted per session. Stop or Revoke clears permissions; restarting keeps OS
+control off. No application is launched and no shell text or paths are accepted.
+
+The project owner authorized implementation ahead of the original gates. The
+event-F1 target remains unmet and the target-hardware requirement of at most
+1 false action per 30 minutes of controlled negative microphone testing remains
+unmeasured. This is experimental integration, not validated external voice control.
+The UI includes a negative-session recorder and persistent audit/report links.
+See [setup and validation](docs/os-external-actions.md) for supported targets,
+permissions, revocation limits and the scripted hardware test.
 
 ## Checks and reproducibility
 

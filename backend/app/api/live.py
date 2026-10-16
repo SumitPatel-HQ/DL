@@ -9,14 +9,16 @@ the session. Nothing keeps listening afterwards.
 import asyncio
 import contextlib
 import json
+import sqlite3
 import time
 from typing import Annotated, Any
 from uuid import uuid4
 
 import numpy as np
-from fastapi import APIRouter, Depends, Request, WebSocket
+from fastapi import APIRouter, Depends, Query, Request, WebSocket
 from starlette.websockets import WebSocketState
 
+from app.services.external_actions import ExternalSession
 from app.services.live import (
     ENCODING,
     MAX_SAMPLE_RATE,
@@ -27,6 +29,7 @@ from app.services.live import (
     LiveService,
     LiveStream,
 )
+from app.services.windows_actions import WindowsExecutor
 from ml.spotting import KEYWORDS
 
 router = APIRouter(prefix="/api")
@@ -47,6 +50,26 @@ def actions(live: Annotated[LiveService, Depends(service)]) -> dict[str, Any]:
 def commands_legacy(live: Annotated[LiveService, Depends(service)]) -> dict[str, Any]:
     """Deprecated alias for GET /api/actions. Kept for backward compatibility."""
     return live.command_map()
+
+
+@router.get("/external-actions/logs")
+def external_logs(
+    live: Annotated[LiveService, Depends(service)], limit: Annotated[int, Query(ge=1, le=500)] = 100
+) -> dict[str, Any]:
+    with live.recordings.store.transaction() as db:
+        rows = db.execute(
+            "SELECT * FROM external_action_logs ORDER BY id DESC LIMIT ?", (limit,)
+        ).fetchall()
+    return {"logs": [dict(row) for row in rows]}
+
+
+@router.get("/external-actions/negative-reports")
+def negative_reports(live: Annotated[LiveService, Depends(service)]) -> dict[str, Any]:
+    with live.recordings.store.transaction() as db:
+        rows = db.execute(
+            "SELECT document_json FROM negative_session_reports ORDER BY created_at DESC LIMIT 100"
+        ).fetchall()
+    return {"reports": [json.loads(row[0]) for row in rows]}
 
 
 class SessionError(Exception):
@@ -109,6 +132,7 @@ async def live(socket: WebSocket) -> None:
         return
     await socket.accept()
     acquired = False
+    external: ExternalSession | None = None
     processor: asyncio.Task[None] | None = None
     try:
         try:
@@ -122,6 +146,17 @@ async def live(socket: WebSocket) -> None:
             raise SessionError("live_busy", "Another live session is running.", 1013)
         acquired = True
         session = uuid4().hex
+        external = ExternalSession(
+            live.recordings.store,
+            session,
+            WindowsExecutor(),
+            {
+                "checkpoint_sha256": live.recordings.loaded.sha256
+                if live.recordings.loaded
+                else None,
+                "live_policy": live.policy.to_dict(),
+            },
+        )
         await socket.send_json(
             {
                 "type": "ready",
@@ -133,6 +168,7 @@ async def live(socket: WebSocket) -> None:
                 "policy": live.policy.to_dict(),
             }
         )
+        await socket.send_json(external.state())
         stream = LiveStream(rate, live.policy)
         decider = LiveDecider(live.policy, live.labels())
         wake = asyncio.Event()
@@ -144,6 +180,7 @@ async def live(socket: WebSocket) -> None:
                 await wake.wait()
                 wake.clear()
                 batch = stream.take_windows()
+                generation = external.generation
                 if batch.dropped_s:
                     # Stale audio is dropped, never queued; the utterance restarts.
                     decider.reset()
@@ -152,6 +189,11 @@ async def live(socket: WebSocket) -> None:
                     continue
                 scores = await asyncio.to_thread(live.score, batch.windows)
                 for end, row in zip(batch.ends_s, scores, strict=True):
+                    if generation != external.generation:
+                        # Audio captured before a permission change cannot trigger the new target.
+                        decider.reset()
+                        break
+                    external.scored(end, live.policy.window_s)
                     top = int(np.argmax(row))
                     await socket.send_json(
                         {
@@ -162,8 +204,21 @@ async def live(socket: WebSocket) -> None:
                         }
                     )
                     for decision in decider.observe(end, row):
+                        if generation != external.generation:
+                            decider.reset()
+                            break
                         event = live.record(session, decision)
-                        await socket.send_json(decision_message(decision, event, arrived))
+                        outcome = await external.dispatch(decision, event)
+                        payload = decision_message(decision, event, arrived)
+                        if outcome is not None:
+                            payload["external"] = outcome
+                            with live.recordings.store.transaction() as db:
+                                db.execute(
+                                    "UPDATE live_events SET action_status=? WHERE id=?",
+                                    ("external_" + outcome["status"], event),
+                                )
+                            await socket.send_json(external.state())
+                        await socket.send_json(payload)
 
         processor = asyncio.create_task(process())
         while True:
@@ -191,7 +246,18 @@ async def live(socket: WebSocket) -> None:
             except json.JSONDecodeError:
                 control = None
             kind = control.get("type") if isinstance(control, dict) else None
+            if isinstance(kind, str) and (
+                kind.startswith("external_") or kind.startswith("negative_")
+            ):
+                generation = external.generation
+                response = await external.control(control)
+                if generation != external.generation:
+                    stream.discard()
+                    decider.reset()
+                await socket.send_json(response)
+                continue
             if kind == "stop":
+                external.revoke("session_stopped")
                 processor.cancel()
                 live.release()
                 acquired = False
@@ -201,6 +267,7 @@ async def live(socket: WebSocket) -> None:
             if kind == "action_result" and isinstance(control, dict):
                 if live.acknowledge(session, control.get("decision_id"), control.get("status")):
                     continue
+            external.log("control", "rejected", "invalid_message")
             raise SessionError("invalid_message", "Unexpected control message.", 1008)
     except SessionError as exc:
         if exc.code != "disconnected" and socket.client_state == WebSocketState.CONNECTED:
@@ -215,6 +282,9 @@ async def live(socket: WebSocket) -> None:
                 )
                 await socket.close(code=1011)
     finally:
+        if external is not None:
+            with contextlib.suppress(sqlite3.Error, OSError):
+                external.revoke("session_closed")
         if processor is not None:
             processor.cancel()
             with contextlib.suppress(BaseException):

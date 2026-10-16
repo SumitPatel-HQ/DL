@@ -7,7 +7,7 @@ import { keywordColor, REJECTED_COLOR } from "../../lib/keywords.ts";
 import { micPermission, openMic, type MicPipeline } from "../../lib/live/mic.ts";
 import {
   addHistory, IDLE, micErrorCode, parseServerMessage, REASON_COPY, sessionReducer,
-  type HistoryEntry, type ServerMessage,
+  type HistoryEntry, type ServerMessage, type ExternalState, type NegativeReport,
 } from "../../lib/live/session.ts";
 import { applyAction, initialStage, KEY_BINDINGS, KEY_LABELS, type Action, type Stage } from "../../lib/live/stage.ts";
 import { CheckIcon, LockIcon, MicIcon, StopIcon, XIcon } from "../icons";
@@ -15,6 +15,7 @@ import { useBackend } from "../shell/backend";
 import { Banner, ErrorBanner } from "../ui";
 import { CooldownBar, Elapsed, LevelMeter } from "./meters";
 import { Player, SLIDES, SlideDeck } from "./stage";
+import { ExternalControls } from "./external-controls";
 
 type Policy = ActionMap["policy"];
 type Decision = Extract<ServerMessage, { type: "decision" }>;
@@ -51,6 +52,9 @@ export function LiveSession() {
   const [locked, setLocked] = useState(false);
   const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
   const [slowNotice, setSlowNotice] = useState<string | null>(null);
+  const [external, setExternal] = useState<ExternalState | null>(null);
+  const [externalBusy, setExternalBusy] = useState(false);
+  const [negativeReport, setNegativeReport] = useState<NegativeReport | null>(null);
 
   const stageRef = useRef(stage);
   const micRef = useRef<MicPipeline | null>(null);
@@ -91,6 +95,8 @@ export function LiveSession() {
     micRef.current = null;
     setAnalyser(null);
     setHearing(null);
+    setExternal(null);
+    setExternalBusy(false);
   }, []);
 
   const stop = useCallback(
@@ -109,7 +115,7 @@ export function LiveSession() {
     [teardown],
   );
 
-  // The single action path shared by voice, keyboard, and clicks (ADR-0004).
+  // In-app actions only. External voice results are executed by the backend.
   const perform = useCallback((action: Action, keyword: string | null) => {
     const outcome = applyAction(stageRef.current, action);
     stageRef.current = outcome.stage;
@@ -144,6 +150,15 @@ export function LiveSession() {
   const onMessage = useCallback(
     (message: ServerMessage) => {
       switch (message.type) {
+        case "external_state":
+          setExternal(message);
+          setExternalBusy(false);
+          return;
+        case "negative_report":
+          setNegativeReport(message.report);
+          setExternal((current) => current ? { ...current, negative_running: false } : current);
+          setExternalBusy(false);
+          return;
         case "ready":
           readyRef.current = true;
           setPolicy((current) => (current ? { ...current, ...message.policy } : (message.policy as Policy)));
@@ -155,11 +170,15 @@ export function LiveSession() {
         case "decision": {
           let result: string | null = null;
           if (message.accepted && message.action) {
-            const outcome = perform(message.action, message.label);
-            result = outcome.result;
-            socketRef.current?.send(
-              JSON.stringify({ type: "action_result", decision_id: message.id, status: outcome.changed ? "applied" : "no_change" }),
-            );
+            if (message.external) {
+              result = `External ${message.action.replaceAll("_", " ")}: ${message.external.status}. ${message.external.reason}`;
+            } else {
+              const outcome = perform(message.action, message.label);
+              result = outcome.result;
+              socketRef.current?.send(
+                JSON.stringify({ type: "action_result", decision_id: message.id, status: outcome.changed ? "applied" : "no_change" }),
+              );
+            }
             const cooldown = (policy?.cooldown_s ?? 1.2) * 1000;
             setCooldownUntil(performance.now() + cooldown);
             setLocked(true);
@@ -207,6 +226,14 @@ export function LiveSession() {
     },
     [perform, policy],
   );
+
+  const sendExternal = useCallback((control: Record<string, unknown>) => {
+    const socket = socketRef.current;
+    if (socket?.readyState === WebSocket.OPEN && readyRef.current) {
+      setExternalBusy(true);
+      socket.send(JSON.stringify(control));
+    }
+  }, []);
 
   const start = useCallback(async () => {
     dispatch({ type: "start" });
@@ -303,7 +330,7 @@ export function LiveSession() {
           <p className="eyebrow">Voice Control</p>
           <h1>Drive the demo with six Keywords</h1>
           <p>
-            Press Start to open the mic. Accepted Keywords trigger in-app slide and player actions only; Unknown,
+            Press Start to open the mic. Accepted Keywords trigger in-app slide and player actions by default; Unknown,
             Silence, and uncertain input are rejected and shown. Keyboard keys run the same actions.
             Saying “stop” pauses playback only; only the Stop button ends the session and releases the mic.
           </p>
@@ -354,6 +381,11 @@ export function LiveSession() {
         </div>
       </section>
 
+      {listening && external ? <ExternalControls
+        key={external.targets.map((target) => target.id).join(",")}
+        state={external} report={negativeReport} pending={externalBusy} send={sendExternal}
+      /> : null}
+
       <div style={{ display: "grid", gap: 12, marginTop: 16 }}>
         {backend.status === "offline" ? (
           <ErrorBanner code="offline" handlers={{ retry: refresh }} />
@@ -400,7 +432,8 @@ export function LiveSession() {
               })}
             </div>
             <div className="card-foot">
-              Unknown speech and Silence never map to an action. Nothing here can reach the OS, other apps, or a shell.
+              Unknown speech and Silence never map to an action. Keyboard and clicks control only this demo.
+              Voice can control a selected Windows target only after the separate experimental opt-in above. No shell execution.
             </div>
           </section>
         </div>
@@ -435,7 +468,7 @@ export function LiveSession() {
             </div>
             <p className="reason">{last ? (REASON_COPY[last.reason] ?? `Rejected: ${last.reason}`) : listening ? "Say one of the six Keywords." : "Start the mic, or use the keys below."}</p>
             {last?.result ? (
-              <p className="result"><CheckIcon size={16} /> {last.result} <span className="tag">{last.processing_ms.toFixed(0)} ms window → decision</span></p>
+              <p className="result">{last.external && !["applied", "no_change"].includes(last.external.status) ? <XIcon size={16} /> : <CheckIcon size={16} />} {last.result} <span className="tag">{last.processing_ms.toFixed(0)} ms window → decision</span></p>
             ) : null}
             <CooldownBar until={cooldownUntil} duration={(policy?.cooldown_s ?? 1.2) * 1000} />
           </section>

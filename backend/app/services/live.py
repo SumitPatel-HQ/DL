@@ -179,6 +179,12 @@ class LiveStream:
     def retained_seconds(self) -> float:
         return len(self.samples) / self.rate
 
+    def discard(self) -> None:
+        """Require a fresh complete window after a permission/test boundary."""
+        self.samples = np.zeros(0, dtype=np.float32)
+        self.offset = self.received
+        self.next_end = self.received + self.window
+
 
 class LiveService:
     """One live session at a time over the active model. Stores metadata, never audio."""
@@ -260,7 +266,7 @@ class LiveService:
             with self.recordings.store.transaction() as db:
                 updated = db.execute(
                     "UPDATE live_events SET action_status=? "
-                    "WHERE id=? AND session_id=? AND accepted=1",
+                    "WHERE id=? AND session_id=? AND accepted=1 AND action_status='dispatched'",
                     (status, decision, session),
                 ).rowcount
         except sqlite3.Error:

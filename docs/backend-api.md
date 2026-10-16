@@ -171,7 +171,10 @@ audio is stored.
 The action map is a strict allowlist of in-app demo actions
 ([ADR-0004](adr/0004-in-app-actions-only.md)): `right` `next_slide`, `left`
 `previous_slide`, `go` `play`, `stop` `pause`, `up` `volume_up`, `down`
-`volume_down`. Unknown and Silence never map to an action. Nothing reaches the OS.
+`volume_down`. Unknown and Silence never map to an action. By default these affect
+only the in-app demo. The separately consented experimental Windows integration
+is documented in [OS actions](os-external-actions.md); its permission and execution
+path is separate from this map and from inference.
 
 The browser opens the socket only after the user presses Start
 ([ADR-0003](adr/0003-local-websocket-mic.md)). Origins follow the HTTP allowlist;

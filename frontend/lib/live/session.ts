@@ -2,6 +2,36 @@
 // on Stop, disconnect, error, or tab-hide; no state keeps listening.
 import { isAction, type Action } from "./stage.ts";
 
+export type ExternalTarget = {
+  id: string;
+  kind: "volume" | "powerpoint" | "media";
+  label: string;
+  actions: Action[];
+};
+export type ExternalState = {
+  type: "external_state";
+  supported: boolean;
+  enabled: boolean;
+  target_id: string | null;
+  allowed_actions: Action[];
+  targets: ExternalTarget[];
+  experimental: true;
+  error: string | null;
+  negative_running: boolean;
+};
+export type ExternalResult = {
+  status: "applied" | "no_change" | "rejected" | "failed" | "outcome_unknown";
+  reason: string;
+  target_id: string;
+};
+export type NegativeReport = {
+  id: string;
+  negative_exposure_s: number;
+  false_actions: number;
+  verdict: string;
+  [key: string]: unknown;
+};
+
 export type ServerMessage =
   | {
       type: "ready";
@@ -25,10 +55,13 @@ export type ServerMessage =
       reason: string;
       action: Action | null;
       processing_ms: number;
+      external?: ExternalResult;
     }
   | { type: "backpressure"; dropped_s: number }
   | { type: "error"; code: string; message: string }
-  | { type: "stopped" };
+  | { type: "stopped" }
+  | ExternalState
+  | { type: "negative_report"; report: NegativeReport };
 
 export function parseServerMessage(text: string): ServerMessage | null {
   let value: unknown;
@@ -68,7 +101,34 @@ export function parseServerMessage(text: string): ServerMessage | null {
         (message.accepted ? reason !== "accepted" : reason === "accepted")
       )
         return null;
+      if ("external" in message) {
+        const result = message.external as Partial<ExternalResult> | null;
+        if (!message.accepted || !result || typeof result !== "object" ||
+            typeof result.target_id !== "string" || typeof result.reason !== "string" ||
+            !["applied", "no_change", "rejected", "failed", "outcome_unknown"].includes(result.status ?? ""))
+          return null;
+      }
       return message as ServerMessage;
+    }
+    case "external_state":
+      if (typeof message.supported !== "boolean" || typeof message.enabled !== "boolean" ||
+          !(message.target_id === null || typeof message.target_id === "string") ||
+          !Array.isArray(message.allowed_actions) || !message.allowed_actions.every(isAction) ||
+          typeof message.negative_running !== "boolean" || message.experimental !== true ||
+          !(message.error === null || typeof message.error === "string") ||
+          !Array.isArray(message.targets) || !message.targets.every((target: unknown) => {
+            if (!target || typeof target !== "object") return false;
+            const item = target as Partial<ExternalTarget>;
+            return typeof item.id === "string" && typeof item.label === "string" &&
+              ["volume", "powerpoint", "media"].includes(item.kind ?? "") &&
+              Array.isArray(item.actions) && item.actions.every(isAction);
+          })) return null;
+      return message as ExternalState;
+    case "negative_report": {
+      const report = message.report as Partial<NegativeReport> | null;
+      return report && typeof report.id === "string" && typeof report.negative_exposure_s === "number" &&
+        typeof report.false_actions === "number" && typeof report.verdict === "string"
+        ? message as ServerMessage : null;
     }
     case "backpressure":
       return typeof message.dropped_s === "number" ? (message as ServerMessage) : null;

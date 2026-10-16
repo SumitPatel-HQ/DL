@@ -12,6 +12,11 @@ dependencies = [
     "psutil>=7,<8",
     "scipy>=1.15,<2",
     "websockets>=15,<17",
+    "pycaw>=20260927 ; sys_platform == 'win32'",
+    "comtypes>=1.4.17 ; sys_platform == 'win32'",
+    "winrt-windows-media-control>=3.2.1 ; sys_platform == 'win32'",
+    "winrt-windows-foundation>=3.2.1 ; sys_platform == 'win32'",
+    "winrt-windows-foundation-collections>=3.2.1 ; sys_platform == 'win32'",
 ]
 
 [dependency-groups]

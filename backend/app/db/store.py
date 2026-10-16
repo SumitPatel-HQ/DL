@@ -48,8 +48,17 @@ CREATE TABLE IF NOT EXISTS live_events (
     action_status TEXT, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS detections_recording ON detections(recording_id);
+CREATE TABLE IF NOT EXISTS external_action_logs (
+    id INTEGER PRIMARY KEY, session_id TEXT NOT NULL, event_id INTEGER,
+    kind TEXT NOT NULL, target_id TEXT, action TEXT, status TEXT NOT NULL,
+    reason TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS negative_session_reports (
+    id TEXT PRIMARY KEY, document_json TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 """
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 # Recordings being analyzed by the bounded worker. RecordingService holds
 # Store.lock only for these short metadata transitions, never across audio
@@ -69,7 +78,7 @@ class Store:
         self.connection.row_factory = sqlite3.Row
         self.connection.execute("PRAGMA foreign_keys = ON")
         self.connection.execute("PRAGMA journal_mode = WAL")
-        if self.connection.execute("PRAGMA user_version").fetchone()[0] < SCHEMA_VERSION:
+        if self.connection.execute("PRAGMA user_version").fetchone()[0] < 1:
             # Version 0 reserved evaluation_runs with no writer, so the old
             # shape never held data and is replaced rather than migrated.
             self.connection.execute("DROP TABLE IF EXISTS evaluation_runs")

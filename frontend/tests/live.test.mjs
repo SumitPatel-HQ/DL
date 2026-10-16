@@ -64,6 +64,32 @@ test("decisions with custom non-action labels round-trip instead of dropping", (
     null,
   );
 });
+
+test("external result status is retained and invalid results are rejected", () => {
+  const decision = {
+    type: "decision", id: 3, t_s: 2, label: "go", score: 0.9, accepted: true,
+    reason: "accepted", action: "play", processing_ms: 10,
+    external: { status: "rejected", reason: "action_not_permitted", target_id: "selected" },
+  };
+  assert.deepEqual(parseServerMessage(JSON.stringify(decision)), decision);
+  for (const external of [null, {}, { ...decision.external, status: "shell" },
+    { ...decision.external, target_id: 42 }]) {
+    assert.equal(parseServerMessage(JSON.stringify({ ...decision, external })), null);
+  }
+});
+
+test("external permissions and negative reports require valid server message shapes", () => {
+  const state = {
+    type: "external_state", supported: true, enabled: false, target_id: null,
+    allowed_actions: [], targets: [{ id: "speaker", kind: "volume", label: "Speakers", actions: ["volume_up"] }],
+    experimental: true, error: null, negative_running: false,
+  };
+  assert.deepEqual(parseServerMessage(JSON.stringify(state)), state);
+  assert.equal(parseServerMessage(JSON.stringify({ ...state, targets: [{ actions: ["shell"] }] })), null);
+  const report = { type: "negative_report", report: { id: "report", negative_exposure_s: 3, false_actions: 1, verdict: "not_passed" } };
+  assert.deepEqual(parseServerMessage(JSON.stringify(report)), report);
+  assert.equal(parseServerMessage(JSON.stringify({ ...report, report: {} })), null);
+});
 test("mic failures map to distinct recoverable states", () => {
   const error = (name) => Object.assign(new Error("x"), { name });
   assert.equal(micErrorCode(error("NotAllowedError"), "prompt"), "mic_denied");
