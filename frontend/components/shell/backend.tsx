@@ -11,7 +11,7 @@ export type Backend =
 
 type BackendContext = { backend: Backend; refresh: () => void };
 
-const Context = createContext<BackendContext>({ backend: { status: "checking" }, refresh: () => {} });
+const Context = createContext<BackendContext>({ backend: { status: "checking" }, refresh: () => { } });
 
 const POLL_MS = 5000;
 
@@ -91,8 +91,7 @@ export function BackendPill() {
     case "ready":
       return (
         <span className="pill" role="status" title={`Checkpoint ${backend.model.id}`}>
-          <span className="dot ok" /> <strong>{backend.model.version ?? "Model"}</strong> ready ·{" "}
-          <span className="mono">{backend.model.id.slice(0, 8)}</span>
+          <span className="dot ok" /> <strong>Model</strong> ready
         </span>
       );
   }

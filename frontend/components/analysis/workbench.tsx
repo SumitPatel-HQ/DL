@@ -8,7 +8,7 @@ import { formatBytes, formatDuration } from "../../lib/format.ts";
 import { inspectWav } from "../../lib/wav.ts";
 import { UploadIcon, WaveIcon, XIcon } from "../icons";
 import { useBackend } from "../shell/backend";
-import { EmptyState, ErrorBanner, ExperimentalBanner } from "../ui";
+import { EmptyState, ErrorBanner, ExperimentalBadge } from "../ui";
 import { RecordingReview } from "./review";
 
 type Upload = {
@@ -113,7 +113,10 @@ export function AnalysisWorkbench() {
     <div className="page">
       <div className="page-head">
         <div>
-          <p className="eyebrow">Audio Analysis</p>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+            <p className="eyebrow" style={{ margin: 0 }}>Audio Analysis</p>
+            <ExperimentalBadge />
+          </div>
           <h1>Review Detections in a Recording</h1>
           <p>
             Upload a PCM WAV, choose trained Keywords, and verify each Detection by listening. Waveform regions,
@@ -121,14 +124,15 @@ export function AnalysisWorkbench() {
           </p>
         </div>
       </div>
-      <div style={{ display: "grid", gap: 12, marginBottom: 18 }}>
-        <ExperimentalBanner />
-        {backend.status === "offline" ? (
+      {backend.status === "offline" ? (
+        <div style={{ marginBottom: 18 }}>
           <ErrorBanner code="offline" handlers={{ retry: () => { refresh(); setReload((n) => n + 1); } }} />
-        ) : listError ? (
+        </div>
+      ) : listError ? (
+        <div style={{ marginBottom: 18 }}>
           <ErrorBanner code={listError} handlers={{ retry: () => setReload((n) => n + 1) }} />
-        ) : null}
-      </div>
+        </div>
+      ) : null}
       <div className="workbench">
         <aside className="sidebar" aria-label="Recordings">
           <div

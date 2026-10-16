@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import type { CSSProperties, ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
 import { describeError, type Recovery } from "../lib/errors.ts";
 import { formatScore } from "../lib/format.ts";
 import { keywordColor } from "../lib/keywords.ts";
@@ -85,6 +86,69 @@ export function ErrorBanner({ code, handlers = {} }: { code: string; handlers?: 
   );
 }
 
+export function ExperimentalBadge({ evidence = "/dashboard?tab=continuous" }: { evidence?: string }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handleDown = (e: MouseEvent | TouchEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("mousedown", handleDown);
+    window.addEventListener("keydown", handleKey);
+    return () => {
+      window.removeEventListener("mousedown", handleDown);
+      window.removeEventListener("keydown", handleKey);
+    };
+  }, [open]);
+
+  return (
+    <div className="experimental-badge-wrap" ref={ref}>
+      <button
+        type="button"
+        className="experimental-badge-btn"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        title="Experimental sliding-window detector. Click for details."
+      >
+        <span className="experimental-badge-dot" aria-hidden="true" />
+        <span>Experimental</span>
+        <InfoIcon size={12} />
+      </button>
+
+      {open && (
+        <div className="experimental-popover" role="dialog" aria-label="Detector limitations">
+          <div className="experimental-popover-head">
+            <strong>Sliding-Window Detector</strong>
+            <button
+              type="button"
+              className="experimental-popover-close"
+              onClick={() => setOpen(false)}
+              aria-label="Close"
+            >
+              ×
+            </button>
+          </div>
+          <p className="experimental-popover-body">
+            Approximate 1s spans (event-F1 0.010). Verify detections by listening.
+          </p>
+          <div className="experimental-popover-actions">
+            <Link className="btn small" href={evidence} onClick={() => setOpen(false)}>
+              Feasibility run →
+            </Link>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function ExperimentalBanner({ evidence = "/dashboard?tab=continuous" }: { evidence?: string }) {
   return (
     <Banner
@@ -92,13 +156,11 @@ export function ExperimentalBanner({ evidence = "/dashboard?tab=continuous" }: {
       title="Experimental sliding-window detector"
       actions={
         <Link className="btn small" href={evidence}>
-          See E02 feasibility run
+          Feasibility run →
         </Link>
       }
     >
-      Detection times are approximate 1 s window spans. Confidence is a classifier score, not a
-      measure of correctness. On held-out natural speech this detector scored event-F1 0.010, far
-      below the 0.70 target, so treat Detections as leads to verify by listening.
+      Approximate 1s spans (event-F1 0.010). Verify detections by listening.
     </Banner>
   );
 }

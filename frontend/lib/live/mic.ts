@@ -7,7 +7,9 @@ export async function openMic(onFrame: (pcm: ArrayBuffer) => void): Promise<MicP
     throw new DOMException("Microphone needs a secure context.", "SecurityError");
   }
   const stream = await navigator.mediaDevices.getUserMedia({
-    audio: { channelCount: 1, echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+    // Browser DSP matches how Speech Commands was recorded and lifts quiet speech.
+    // Frames are never skipped: the server derives time from the sample count.
+    audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
   });
   let context: AudioContext | null = null;
   try {

@@ -434,6 +434,8 @@ export function RecordingReview({
               <p className="sub">
                 Frozen detector · stride {detector.stride_s.toFixed(2)} s · threshold {detector.threshold.toFixed(2)} ·
                 min consecutive {detector.min_consecutive} · suppression {detector.suppression_s.toFixed(1)} s
+                {detector.margin ? ` · margin ${detector.margin.toFixed(2)}` : ""}
+                {detector.min_level_db ? ` · level gate ${detector.min_level_db.toFixed(0)} dB` : ""}
               </p>
             ) : null}
           </div>

@@ -25,6 +25,10 @@ export type DetectorConfig = {
   min_consecutive: number;
   suppression_s: number;
   window_s: number;
+  /** Lead of the top class over the runner-up; absent on older detector files. */
+  margin?: number;
+  /** Window loudness above the Recording's quiet floor, in dB; absent on older files. */
+  min_level_db?: number;
 };
 
 /** Post-processing of the temporal prototype (ADR-0007); no sliding window. */

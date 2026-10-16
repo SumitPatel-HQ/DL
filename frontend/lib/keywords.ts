@@ -11,7 +11,7 @@ export const KEYWORD_COLORS: Record<string, string> = {
   stop: "#008300",
 };
 
-export const REJECTED_COLOR = "#6b7480";
+export const REJECTED_COLOR = "#969ca6";
 
 export function keywordColor(keyword: string): string {
   return KEYWORD_COLORS[keyword] ?? REJECTED_COLOR;

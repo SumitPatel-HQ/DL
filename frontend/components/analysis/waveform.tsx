@@ -98,7 +98,7 @@ export function Waveform({
     context.clearRect(0, 0, width, height);
     const top = lanesH;
     const mid = top + WAVE_H / 2;
-    context.fillStyle = "#1a2028";
+    context.fillStyle = "#252e38";
     context.fillRect(0, mid, width, 1);
     if (audio) {
       const shown = detections
@@ -115,7 +115,7 @@ export function Waveform({
           Math.ceil((t0 + secondsPerPx) * audio.sampleRate),
         );
         const covering = shown.find((d) => d.start_s <= t0 && t0 < d.end_s);
-        context.fillStyle = covering ? keywordColor(covering.keyword) : "#5d6876";
+        context.fillStyle = covering ? keywordColor(covering.keyword) : "#4f677b";
         const y1 = mid - Math.max(high, 0.004) * amp;
         const y2 = mid - Math.min(low, -0.004) * amp;
         context.fillRect(x, y1, 1, Math.max(1, y2 - y1));
@@ -125,7 +125,7 @@ export function Waveform({
     const pxPerSecond = innerWidth / Math.max(duration, 1e-6);
     const step = TICK_STEPS.find((s) => s * pxPerSecond >= 72) ?? 300;
     const rulerTop = top + WAVE_H;
-    context.fillStyle = "#232a33";
+    context.fillStyle = "#405567";
     context.fillRect(0, rulerTop, width, 1);
     context.font = "11px ui-monospace, Consolas, monospace";
     context.textBaseline = "top";
@@ -134,9 +134,9 @@ export function Waveform({
       const x = t * pxPerSecond - scrollLeft;
       if (x > width) break;
       if (x < -60) continue;
-      context.fillStyle = "#39424e";
+      context.fillStyle = "#405567";
       context.fillRect(Math.round(x), rulerTop, 1, 6);
-      context.fillStyle = "#7c8693";
+      context.fillStyle = "#969ca6";
       context.fillText(tickLabel(t, step), Math.round(x) + 4, rulerTop + 7);
     }
   }, [audio, width, height, lanesH, zoom, scrollLeft, innerWidth, duration, detections, visible]);

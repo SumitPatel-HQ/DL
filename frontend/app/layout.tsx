@@ -19,11 +19,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           <header className="shell-header">
             <div className="shell-header-inner">
               <Link href="/" className="brand">
-                <span className="brand-mark"><BrandMark /></span>
-                KWS Lab <small>local</small>
+                <BrandMark />
+                KWS Lab
               </Link>
               <Nav />
-              <span className="shell-spacer" />
               <BackendPill />
             </div>
           </header>

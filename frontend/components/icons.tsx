@@ -37,6 +37,7 @@ export const NextIcon = (p: IconProps) => (
 export const ChevronLeft = (p: IconProps) => <Icon {...p}><path d="m15 18-6-6 6-6" /></Icon>;
 export const ChevronRight = (p: IconProps) => <Icon {...p}><path d="m9 18 6-6-6-6" /></Icon>;
 export const ArrowRight = (p: IconProps) => <Icon {...p}><path d="M5 12h14M13 6l6 6-6 6" /></Icon>;
+export const ArrowUpRight = (p: IconProps) => <Icon {...p}><path d="M7 17 17 7M7 7h10v10" /></Icon>;
 export const UploadIcon = (p: IconProps) => (
   <Icon {...p}><path d="M12 15V4M7 9l5-5 5 5" /><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" /></Icon>
 );
@@ -82,9 +83,9 @@ export const DatabaseIcon = (p: IconProps) => (
   <Icon {...p}><ellipse cx="12" cy="5" rx="8" ry="3" /><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3" /></Icon>
 );
 
-export function BrandMark() {
+export function BrandMark({ size = 26 }: { size?: number } = {}) {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" style={{ flexShrink: 0 }}>
       <rect x="2" y="10" width="2.4" height="4" rx="1.2" fill="#3987e5" />
       <rect x="6.2" y="6" width="2.4" height="12" rx="1.2" fill="#199e70" />
       <rect x="10.4" y="2.5" width="2.4" height="19" rx="1.2" fill="#d55181" />

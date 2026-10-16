@@ -282,9 +282,9 @@ export function IsolatedView({ run }: { run: IsolatedRun }) {
   );
 }
 
-const HIT = "#0ca30c";
-const FALSE = "#d03b3b";
-const MISS = "#ec835a";
+const HIT = "#5bd0d6";
+const FALSE = "#fb414a";
+const MISS = "#fe9a00";
 
 export function ContinuousView({ run }: { run: ContinuousRun }) {
   const m = run.metrics;
