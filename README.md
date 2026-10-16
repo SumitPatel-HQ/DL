@@ -147,6 +147,16 @@ eleven-class dataset preparation, training and evaluation. New-word recordings
 and reviewed runs are still missing, so `next`, `pause`, and `urgent` remain gated.
 The app continues to serve the six Keywords from E02.
 
+P2-02 Windows system volume and external PowerPoint/media actions are
+`wontfix` for the course deliverable under
+[ADR-0008](docs/adr/0008-os-external-actions-no-go.md). The temporal event-F1
+gate is unmet, and the target of at most 1 false action per 30 minutes of
+controlled negative microphone testing remains unmeasured on target hardware.
+Voice Control requires Start listening and controls only the in-app demo;
+`up`/`down` do not change Windows volume. Reopening requires both measured
+gates to pass and a new ADR authorizing explicit OS consent, target/action
+permissions, and rollback. See the [ticket disposition](docs/P1&P2/06-os-external-actions.md).
+
 ## Checks and reproducibility
 
 The [recording API guide](docs/backend-api.md) documents uploads, analysis jobs,
