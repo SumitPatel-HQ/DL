@@ -7,15 +7,17 @@ import { keywordColor, REJECTED_COLOR } from "../../lib/keywords.ts";
 import { micPermission, openMic, type MicPipeline } from "../../lib/live/mic.ts";
 import {
   addHistory, IDLE, micErrorCode, parseServerMessage, REASON_COPY, sessionReducer,
-  type HistoryEntry, type ServerMessage, type ExternalState, type NegativeReport,
+  type HistoryEntry, type ServerMessage, type ExternalState, type ExternalTarget, type NegativeReport,
 } from "../../lib/live/session.ts";
 import { applyAction, initialStage, KEY_BINDINGS, KEY_LABELS, type Action, type Stage } from "../../lib/live/stage.ts";
-import { CheckIcon, LockIcon, MicIcon, StopIcon, XIcon } from "../icons";
+import { Settings } from "lucide-react";
+import { CheckIcon, XIcon } from "../icons";
 import { useBackend } from "../shell/backend";
 import { Banner, ErrorBanner } from "../ui";
-import { CooldownBar, Elapsed, LevelMeter } from "./meters";
+import { CooldownBar } from "./meters";
 import { Player, SLIDES, SlideDeck } from "./stage";
 import { ExternalControls } from "./external-controls";
+import { FloatingDock } from "./floating-dock";
 
 type Policy = ActionMap["policy"];
 type Decision = Extract<ServerMessage, { type: "decision" }>;
@@ -28,7 +30,42 @@ const DEFAULT_ACTIONS: ActionMap["actions"] = [
   { keyword: "up", action: "volume_up", label: "Volume up" },
   { keyword: "down", action: "volume_down", label: "Volume down" },
 ];
+
+const DEFAULT_EXTERNAL_TARGETS: ExternalTarget[] = [
+  {
+    id: "volume_default",
+    kind: "volume",
+    label: "Windows volume: Speakers / Audio Output",
+    actions: ["volume_up", "volume_down"],
+  },
+  {
+    id: "powerpoint_default",
+    kind: "powerpoint",
+    label: "PowerPoint: Active slideshow presentation",
+    actions: ["next_slide", "previous_slide"],
+  },
+  {
+    id: "media_default",
+    kind: "media",
+    label: "Media: Windows media player session",
+    actions: ["play", "pause"],
+  },
+];
+
+const DEFAULT_EXTERNAL: ExternalState = {
+  type: "external_state",
+  supported: true,
+  enabled: false,
+  target_id: null,
+  allowed_actions: [],
+  targets: DEFAULT_EXTERNAL_TARGETS,
+  experimental: true,
+  error: null,
+  negative_running: false,
+};
+
 const BACKPRESSURE_BYTES = 256 * 1024;
+const LAST_DECISION_HOLD_MS = 2000;
 const STOP_REASONS: Record<string, string> = {
   user: "Stopped. The mic is released.",
   tab_hidden: "Stopped because the tab was hidden. The mic is released.",
@@ -52,9 +89,17 @@ export function LiveSession() {
   const [locked, setLocked] = useState(false);
   const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
   const [slowNotice, setSlowNotice] = useState<string | null>(null);
-  const [external, setExternal] = useState<ExternalState | null>(null);
+  const [external, setExternal] = useState<ExternalState>(DEFAULT_EXTERNAL);
   const [externalBusy, setExternalBusy] = useState(false);
   const [negativeReport, setNegativeReport] = useState<NegativeReport | null>(null);
+  const [showExternal, setShowExternal] = useState(false);
+  const pendingGrantRef = useRef<{
+    target_id: string;
+    kind?: string;
+    actions: Action[];
+    acknowledge_experimental: boolean;
+  } | null>(null);
+  const replayRef = useRef<"idle" | "discovering" | "done">("idle");
 
   const stageRef = useRef(stage);
   const micRef = useRef<MicPipeline | null>(null);
@@ -64,6 +109,7 @@ export function LiveSession() {
   const droppedRef = useRef(0);
   const flashTimer = useRef(0);
   const lockTimer = useRef(0);
+  const lastAcceptedAt = useRef(-Infinity);
   const attemptRef = useRef(0);
 
   useEffect(() => {
@@ -95,7 +141,14 @@ export function LiveSession() {
     micRef.current = null;
     setAnalyser(null);
     setHearing(null);
-    setExternal(null);
+    setExternal((prev) => ({
+      ...prev,
+      enabled: false,
+      target_id: null,
+      allowed_actions: [],
+      error: null,
+      negative_running: false,
+    }));
     setExternalBusy(false);
   }, []);
 
@@ -150,10 +203,42 @@ export function LiveSession() {
   const onMessage = useCallback(
     (message: ServerMessage) => {
       switch (message.type) {
-        case "external_state":
-          setExternal(message);
+        case "external_state": {
+          const serverState = message;
+          const mergedTargets = serverState.targets.length > 0 ? serverState.targets : DEFAULT_EXTERNAL_TARGETS;
+
+          // Replay a grant saved while idle exactly once per socket. Every grant
+          // bumps the server generation and discards buffered audio, so
+          // answering each external_state with another grant starves the model.
+          const socket = socketRef.current;
+          const pending = pendingGrantRef.current;
+          if (pending && socket?.readyState === WebSocket.OPEN) {
+            if (replayRef.current === "idle") {
+              // The server knows no targets until discovery runs.
+              replayRef.current = "discovering";
+              socket.send(JSON.stringify({ type: "external_targets" }));
+            } else if (replayRef.current === "discovering" && serverState.targets.length > 0) {
+              replayRef.current = "done";
+              const matched = serverState.targets.find((t) => t.id === pending.target_id)
+                ?? serverState.targets.find((t) => t.kind === pending.kind);
+              const actions = matched ? pending.actions.filter((a) => matched.actions.includes(a)) : [];
+              if (matched && actions.length > 0) {
+                socket.send(JSON.stringify({
+                  type: "external_grant",
+                  target_id: matched.id,
+                  actions,
+                  acknowledge_experimental: true,
+                }));
+              }
+            } else if (replayRef.current === "discovering") {
+              replayRef.current = "done";
+            }
+          }
+
+          setExternal({ ...serverState, targets: mergedTargets });
           setExternalBusy(false);
           return;
+        }
         case "negative_report":
           setNegativeReport(message.report);
           setExternal((current) => current ? { ...current, negative_running: false } : current);
@@ -184,8 +269,14 @@ export function LiveSession() {
             setLocked(true);
             window.clearTimeout(lockTimer.current);
             lockTimer.current = window.setTimeout(() => setLocked(false), cooldown);
+            lastAcceptedAt.current = performance.now();
           }
-          setLast({ ...message, result });
+          // Every pause after a Keyword starts a Silence run, and the word's tail
+          // often scores Unknown. Neither may hide the decision the user just made.
+          const fresh = performance.now() - lastAcceptedAt.current < LAST_DECISION_HOLD_MS;
+          if (message.label !== "silence" && (message.accepted || message.label !== "unknown" || !fresh)) {
+            setLast({ ...message, result });
+          }
           setHistory((list) =>
             addHistory(list, {
               key: `d${message.id}`,
@@ -232,8 +323,45 @@ export function LiveSession() {
     if (socket?.readyState === WebSocket.OPEN && readyRef.current) {
       setExternalBusy(true);
       socket.send(JSON.stringify(control));
+      if (control.type === "external_revoke") {
+        pendingGrantRef.current = null;
+      }
+    } else {
+      // Idle mode: allow editing and saving settings freely before mic turns on
+      if (control.type === "external_grant") {
+        const targetId = control.target_id as string;
+        const target = external.targets.find((t) => t.id === targetId);
+        pendingGrantRef.current = {
+          target_id: targetId,
+          kind: target?.kind,
+          actions: control.actions as Action[],
+          acknowledge_experimental: true,
+        };
+        setExternal((prev) => ({
+          ...prev,
+          enabled: true,
+          target_id: targetId,
+          allowed_actions: control.actions as Action[],
+          error: null,
+        }));
+      } else if (control.type === "external_revoke") {
+        pendingGrantRef.current = null;
+        setExternal((prev) => ({
+          ...prev,
+          enabled: false,
+          target_id: null,
+          allowed_actions: [],
+          error: null,
+        }));
+      } else if (control.type === "external_targets") {
+        setExternal((prev) => ({
+          ...prev,
+          targets: DEFAULT_EXTERNAL_TARGETS,
+          error: null,
+        }));
+      }
     }
-  }, []);
+  }, [external.targets]);
 
   const start = useCallback(async () => {
     dispatch({ type: "start" });
@@ -253,7 +381,7 @@ export function LiveSession() {
           return;
         }
         socket.send(frame);
-      });
+      }, new URLSearchParams(window.location.search).get("dsp") !== "off");
     } catch (error) {
       if (attempt === attemptRef.current) fail(micErrorCode(error, permission));
       return;
@@ -269,6 +397,7 @@ export function LiveSession() {
     const socket = new WebSocket(LIVE_URL);
     socket.binaryType = "arraybuffer";
     socketRef.current = socket;
+    replayRef.current = "idle";
     socket.onopen = () =>
       socket.send(JSON.stringify({ type: "start", version: 1, sample_rate: mic.sampleRate, channels: 1, encoding: "pcm_s16le" }));
     socket.onmessage = (event: MessageEvent) => {
@@ -300,8 +429,33 @@ export function LiveSession() {
 
   useEffect(() => () => teardown(), [teardown]);
 
+  // Lock background scrolling and support Escape key when the settings modal is open
+  useEffect(() => {
+    if (!showExternal) return;
+
+    const originalBodyOverflow = document.body.style.overflow;
+    const originalHtmlOverflow = document.documentElement.style.overflow;
+
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setShowExternal(false);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+
+    return () => {
+      document.body.style.overflow = originalBodyOverflow;
+      document.documentElement.style.overflow = originalHtmlOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [showExternal]);
+
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      if (showExternal) return;
       if (event.altKey || event.ctrlKey || event.metaKey) return;
       const target = event.target as HTMLElement | null;
       if (target?.closest("input, textarea, select")) return;
@@ -312,7 +466,7 @@ export function LiveSession() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [manual]);
+  }, [manual, showExternal]);
 
   const status = session.status;
   const listening = status === "listening";
@@ -324,118 +478,105 @@ export function LiveSession() {
   const lastColor = last ? (last.accepted ? keywordColor(last.label) : REJECTED_COLOR) : REJECTED_COLOR;
 
   return (
-    <div className="page">
-      <div className="page-head">
-        <div>
+    <div className="page page-live">
+      <div className="page-head page-head-live">
+        <div className="live-header-copy">
           <p className="eyebrow">Voice Control</p>
           <h1>Drive the demo with six Keywords</h1>
           <p>
-            Press Start to open the mic. Accepted Keywords trigger in-app slide and player actions by default; Unknown,
-            Silence, and uncertain input are rejected and shown. Keyboard keys run the same actions.
-            Saying “stop” pauses playback only; only the Stop button ends the session and releases the mic.
+            Say a trained keyword or press a shortcut key to navigate slides and control audio playback.
           </p>
         </div>
+        <div className="live-header-actions">
+          <button
+            type="button"
+            className={`live-settings-btn ${showExternal ? "is-active" : ""}`}
+            onClick={() => setShowExternal((v) => !v)}
+            title="Windows Actions · OS Control Settings"
+            aria-label="Windows OS control settings"
+          >
+            <Settings size={22} className="live-settings-icon" />
+            {external?.enabled ? <span className="dot ok" style={{ width: 6, height: 6 }} /> : null}
+          </button>
+        </div>
       </div>
 
-      <section className="card" aria-label="Mic session">
-        <div className="session-bar">
-          <div className="status">
-            <span className={`session-state${listening ? " listening" : ""}`} role="status">
-              <span className={`dot ${listening ? "live" : pending ? "busy" : status === "error" ? "critical" : ""}`} />
-              {listening ? "Listening" : status === "requesting" ? "Requesting mic" : status === "connecting" ? "Connecting" : status === "error" ? "Stopped · error" : "Mic off"}
-              {listening && session.startedAt !== null ? <Elapsed since={session.startedAt} /> : null}
-            </span>
-            <span className="session-sub">
-              {listening ? "Streaming to 127.0.0.1 only" : session.stopReason ? STOP_REASONS[session.stopReason] ?? "Stopped." : "Nothing is listening"}
-            </span>
-          </div>
-          {listening || pending ? (
-            <button type="button" className="btn solid-danger lg" onClick={() => stop("user")}>
-              <StopIcon size={16} /> Stop
-            </button>
-          ) : (
-            <button type="button" className="btn primary lg" onClick={start} disabled={!canStart}>
-              <MicIcon size={18} /> Start listening
-            </button>
-          )}
-          <LevelMeter analyser={analyser} />
-          <div className="hearing">
-            <span className="label">Model hears now</span>
-            <span className="now" style={{ "--kw": keywordColor(hearing?.label ?? "") } as CSSProperties}>
-              {hearing ? (
-                <>
-                  <span className="kw-name" style={{ "--kw": keywordColor(hearing.label) } as CSSProperties}>{hearing.label}</span>
-                  <span className="mono" style={{ color: "var(--muted)" }}>{formatScore(hearing.score)}</span>
-                </>
-              ) : (
-                <span style={{ color: "var(--muted)" }}>—</span>
-              )}
-            </span>
+      {showExternal ? (
+        <div className="external-modal-overlay" onClick={() => setShowExternal(false)}>
+          <div
+            className="external-modal-content"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="external-modal-heading"
+          >
+            <div className="external-modal-head">
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <Settings size={20} />
+                <h3 id="external-modal-heading" style={{ margin: 0, fontSize: "1.08rem" }}>Windows Actions · Experimental</h3>
+              </div>
+              <button
+                type="button"
+                className="btn small icon ghost"
+                onClick={() => setShowExternal(false)}
+                aria-label="Close"
+              >
+                <XIcon size={16} />
+              </button>
+            </div>
+            <ExternalControls
+              state={external}
+              report={negativeReport}
+              pending={externalBusy}
+              send={sendExternal}
+            />
           </div>
         </div>
-        <div className="privacy">
-          <LockIcon size={14} />
-          Mic audio is scored in memory in 1 s windows and discarded. No raw mic audio is recorded or stored; only
-          decision metadata (label, Confidence, action) is logged. Pressing the Stop button, a lost connection,
-          or hiding this tab releases the mic at once. Saying “stop” only pauses playback.
+      ) : null}
+
+      {backend.status === "offline" || backend.status === "unavailable" || session.error || (slowNotice && listening) ? (
+        <div style={{ display: "grid", gap: 12, marginTop: 4, marginBottom: 16 }}>
+          {backend.status === "offline" ? (
+            <ErrorBanner code="offline" handlers={{ retry: refresh }} />
+          ) : backend.status === "unavailable" ? (
+            <ErrorBanner code={backend.code} />
+          ) : null}
+          {session.error ? (
+            <ErrorBanner
+              code={session.error}
+              handlers={{ enable_mic: start, mic_settings: start, start_again: start, retry: start }}
+            />
+          ) : null}
+          {slowNotice && listening ? <Banner tone="info" live title="Backpressure">{slowNotice}</Banner> : null}
         </div>
+      ) : null}
+
+      <section className="card" aria-label="Action map">
+        <div className="commands">
+            {actionList.map((mapping) => {
+              const action = mapping.action as Action;
+              return (
+                <button
+                  key={mapping.keyword}
+                  type="button"
+                  className={`command${flash?.keyword === mapping.keyword ? " flash" : ""}${locked ? " locked" : ""}`}
+                  style={{ "--kw": keywordColor(mapping.keyword) } as CSSProperties}
+                  onClick={() => manual(action)}
+                  aria-label={`${mapping.label}: say ${mapping.keyword} or press ${KEY_LABELS[action]}`}
+                >
+                  <span className="kw-name">“{mapping.keyword}”</span>
+                  <span className="act">{mapping.label}</span>
+                  <span className="kbd">{KEY_LABELS[action]}</span>
+                </button>
+              );
+            })}
+          </div>
       </section>
-
-      {listening && external ? <ExternalControls
-        key={external.targets.map((target) => target.id).join(",")}
-        state={external} report={negativeReport} pending={externalBusy} send={sendExternal}
-      /> : null}
-
-      <div style={{ display: "grid", gap: 12, marginTop: 16 }}>
-        {backend.status === "offline" ? (
-          <ErrorBanner code="offline" handlers={{ retry: refresh }} />
-        ) : backend.status === "unavailable" ? (
-          <ErrorBanner code={backend.code} />
-        ) : null}
-        {session.error ? (
-          <ErrorBanner
-            code={session.error}
-            handlers={{ enable_mic: start, mic_settings: start, start_again: start, retry: start }}
-          />
-        ) : null}
-        {slowNotice && listening ? <Banner tone="info" live title="Backpressure">{slowNotice}</Banner> : null}
-      </div>
 
       <div className="live-grid">
         <div className="stage">
           <SlideDeck stage={stage} flash={flash?.action ?? null} direction={direction} onAction={manual} />
           <Player stage={stage} flash={flash?.action ?? null} onAction={manual} />
-          <section className="card" aria-labelledby="actions-title">
-            <div className="card-head">
-              <h3 id="actions-title">Action map</h3>
-              <span className="sub">
-                Allowlist · {policy ? `threshold ${policy.threshold} · ${policy.min_consecutive} windows in a row · cooldown ${policy.cooldown_s} s` : "loading policy"}
-              </span>
-            </div>
-            <div className="commands">
-              {actionList.map((mapping) => {
-                const action = mapping.action as Action;
-                return (
-                  <button
-                    key={mapping.keyword}
-                    type="button"
-                    className={`command${flash?.keyword === mapping.keyword ? " flash" : ""}${locked ? " locked" : ""}`}
-                    style={{ "--kw": keywordColor(mapping.keyword) } as CSSProperties}
-                    onClick={() => manual(action)}
-                    aria-label={`${mapping.label}: say ${mapping.keyword} or press ${KEY_LABELS[action]}`}
-                  >
-                    <span className="kw-name">“{mapping.keyword}”</span>
-                    <span className="act">{mapping.label}</span>
-                    <span className="kbd">{KEY_LABELS[action]}</span>
-                  </button>
-                );
-              })}
-            </div>
-            <div className="card-foot">
-              Unknown speech and Silence never map to an action. Keyboard and clicks control only this demo.
-              Voice can control a selected Windows target only after the separate experimental opt-in above. No shell execution.
-            </div>
-          </section>
         </div>
 
         <div className="stage">
@@ -504,6 +645,20 @@ export function LiveSession() {
           </section>
         </div>
       </div>
+
+      <FloatingDock
+        listening={listening}
+        pending={pending}
+        status={status}
+        startedAt={session.startedAt}
+        canStart={canStart}
+        hearing={hearing}
+        analyser={analyser}
+        stopReasonText={session.stopReason ? STOP_REASONS[session.stopReason] ?? "Stopped." : null}
+        lastDecision={last}
+        onStart={start}
+        onStop={() => stop("user")}
+      />
     </div>
   );
 }

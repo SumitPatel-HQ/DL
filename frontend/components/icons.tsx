@@ -82,6 +82,9 @@ export const VolumeIcon = (p: IconProps) => (
 export const DatabaseIcon = (p: IconProps) => (
   <Icon {...p}><ellipse cx="12" cy="5" rx="8" ry="3" /><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3" /></Icon>
 );
+import { Settings } from "lucide-react";
+
+export const SettingsIcon = (p: IconProps) => <Settings size={p.size ?? 20} {...p} />;
 
 export function BrandMark({ size = 26 }: { size?: number } = {}) {
   return (

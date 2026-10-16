@@ -161,7 +161,7 @@ export function EvaluationDashboard({ initialTab, initialRun }: { initialTab: Ru
   const activeOption = options.find((o) => o.checkpoint === model);
 
   return (
-    <div className="page">
+    <div className="page page-dashboard">
       <div className="page-head">
         <div>
           <p className="eyebrow">Evaluation</p>

@@ -2,14 +2,15 @@
 // every track and closes the audio context so the OS mic indicator turns off.
 export type MicPipeline = { sampleRate: number; analyser: AnalyserNode; stop: () => void };
 
-export async function openMic(onFrame: (pcm: ArrayBuffer) => void): Promise<MicPipeline> {
+export async function openMic(onFrame: (pcm: ArrayBuffer) => void, dsp = true): Promise<MicPipeline> {
   if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
     throw new DOMException("Microphone needs a secure context.", "SecurityError");
   }
   const stream = await navigator.mediaDevices.getUserMedia({
-    // Browser DSP matches how Speech Commands was recorded and lifts quiet speech.
+    // Browser DSP lifts quiet speech, but noise suppression can clip short word
+    // onsets; `dsp = false` (?dsp=off on /live) lets the two be compared.
     // Frames are never skipped: the server derives time from the sample count.
-    audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+    audio: { channelCount: 1, echoCancellation: dsp, noiseSuppression: dsp, autoGainControl: true },
   });
   let context: AudioContext | null = null;
   try {
