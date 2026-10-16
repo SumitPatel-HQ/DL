@@ -5,7 +5,7 @@ import { describeError } from "../lib/errors.ts";
 
 test("requests map API error bodies, 204s, and network failure to stable codes", async (t) => {
   t.mock.method(globalThis, "fetch", async (url) => {
-    assert.equal(url, "http://127.0.0.1:8000/api/recordings/x");
+    assert.equal(url, "http://localhost:8000/api/recordings/x");
     return Response.json({ error: { code: "recording_not_found", message: "gone" } }, { status: 404 });
   });
   await assert.rejects(api.recording("x"), (error) =>

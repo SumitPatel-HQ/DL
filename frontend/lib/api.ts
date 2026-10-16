@@ -1,7 +1,5 @@
-// Browser client for the loopback API. The launcher serves only this endpoint,
-// and the API only accepts browser origins on 127.0.0.1:3000 or localhost:3000.
-export const API_BASE = "http://127.0.0.1:8000";
-export const LIVE_URL = "ws://127.0.0.1:8000/api/live";
+export const API_BASE = "http://localhost:8000";
+export const LIVE_URL = "ws://localhost:8000/api/live";
 
 export class ApiError extends Error {
   readonly code: string;

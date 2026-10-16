@@ -24,7 +24,7 @@ def test_health_distinguishes_running_api_from_unavailable_model(tmp_path: Path)
     }
 
 
-@pytest.mark.parametrize("host", ["localhost", "[::1]", "attacker.example"])
+@pytest.mark.parametrize("host", ["[::1]", "attacker.example"])
 def test_health_rejects_unsupported_host_headers(host: str, tmp_path: Path) -> None:
     """Exercise HTTP Host filtering, not the server's listening socket."""
     isolated = create_app(Settings(storage=tmp_path, checkpoint=tmp_path / "missing.pt"))
@@ -32,3 +32,12 @@ def test_health_rejects_unsupported_host_headers(host: str, tmp_path: Path) -> N
         response = client.get("/api/health")
 
     assert response.status_code == 400
+
+
+@pytest.mark.parametrize("host", ["127.0.0.1", "localhost"])
+def test_health_accepts_loopback_hosts(host: str, tmp_path: Path) -> None:
+    isolated = create_app(Settings(storage=tmp_path, checkpoint=tmp_path / "missing.pt"))
+    with TestClient(isolated, base_url=f"http://{host}:8000") as client:
+        response = client.get("/api/health")
+
+    assert response.status_code == 200

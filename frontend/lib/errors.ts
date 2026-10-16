@@ -19,7 +19,7 @@ export type ErrorCopy = { title: string; detail: string; recovery: Recovery };
 const COPY: Record<string, ErrorCopy> = {
   offline: {
     title: "Backend offline",
-    detail: "The local API on 127.0.0.1:8000 is not answering. Start it with npm run api.",
+    detail: "The local API on localhost:8000 is not answering. Start it with npm run api.",
     recovery: "retry",
   },
   invalid_wav: {

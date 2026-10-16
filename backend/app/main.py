@@ -43,7 +43,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_headers=["Content-Type", "Range"],
         expose_headers=["Content-Range", "Accept-Ranges", "Content-Length"],
     )
-    application.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1"])
+    application.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost"])
 
     @application.exception_handler(ServiceError)
     async def service_error(request: Request, exc: ServiceError) -> JSONResponse:

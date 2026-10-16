@@ -9,7 +9,7 @@ afterEach(() => {
 });
 
 test("health client accepts both model states and rejects invalid contracts", async (t) => {
-  process.env.API_BASE_URL = "http://127.0.0.1:8000";
+  process.env.API_BASE_URL = "http://localhost:8000";
   const payloads = [
     { status: "ok", model: { status: "unavailable", code: "vocabulary_not_reviewed",
       setup_action: "Restore the P0 checkpoint while expanded vocabulary awaits review." } },
@@ -35,7 +35,7 @@ test("health client accepts both model states and rejects invalid contracts", as
   ];
   for (const payload of payloads) {
     t.mock.method(globalThis, "fetch", async (url) => {
-      assert.equal(url.href, "http://127.0.0.1:8000/api/health");
+      assert.equal(url.href, "http://localhost:8000/api/health");
       return Response.json(payload);
     });
     assert.deepEqual(await getHealth(), payload);
@@ -59,10 +59,9 @@ test("health client only connects to the endpoint served by the launcher", async
     throw new Error("Unexpected network request");
   });
   for (const base of [
-    "http://localhost:8000",
     "http://[::1]:8000",
-    "http://127.0.0.1:8001",
-    "https://127.0.0.1:8000",
+    "http://localhost:8001",
+    "https://localhost:8000",
     "http://example.com:8000",
   ]) {
     process.env.API_BASE_URL = base;

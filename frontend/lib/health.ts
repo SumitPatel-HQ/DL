@@ -11,9 +11,9 @@ export type Health = {
 };
 
 export async function getHealth(): Promise<Health> {
-  const base = new URL(process.env.API_BASE_URL ?? "http://127.0.0.1:8000");
-  if (base.href !== "http://127.0.0.1:8000/") {
-    throw new Error("API_BASE_URL must be http://127.0.0.1:8000.");
+  const base = new URL(process.env.API_BASE_URL ?? "http://localhost:8000");
+  if (base.href !== "http://localhost:8000/" && base.href !== "http://127.0.0.1:8000/") {
+    throw new Error("API_BASE_URL must be http://localhost:8000 or http://127.0.0.1:8000.");
   }
   const response = await fetch(new URL("/api/health", base), {
     cache: "no-store",
