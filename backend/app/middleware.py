@@ -27,7 +27,9 @@ class LocalRequestsMiddleware:
             return
         headers = Headers(scope=scope)
         origin = headers.get("origin")
-        if origin is not None and origin not in self.settings.origins:
+        if origin is not None and not self.settings.origin_allowed(
+            origin, (headers.get("host"), headers.get("x-forwarded-host"))
+        ):
             await JSONResponse(
                 {
                     "error": {

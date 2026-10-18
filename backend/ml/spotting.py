@@ -15,7 +15,6 @@ from typing import Any
 import numpy as np
 from numpy.typing import NDArray
 
-from ml.checkpoint import LoadedModel
 from ml.features import LABELS
 from ml.features.pipeline import (
     FRAME_SAMPLES,
@@ -25,6 +24,7 @@ from ml.features.pipeline import (
     Audio,
 )
 from ml.metrics import span_center
+from ml.scoring import ScoringModel
 from ml.vocabulary import keywords_for
 
 KEYWORDS = tuple(label for label in LABELS if label not in ("unknown", "silence"))
@@ -131,7 +131,7 @@ def window_levels_db(audio: Audio, starts: NDArray[np.int64]) -> NDArray[np.floa
 
 
 def score_windows(
-    loaded: LoadedModel,
+    loaded: ScoringModel,
     audio: Audio,
     stride_s: float,
     batch_size: int = 256,
@@ -229,7 +229,7 @@ def suppress_duplicates(candidates: list[Detection], suppression_s: float) -> li
 
 
 def spot_audio(
-    loaded: LoadedModel,
+    loaded: ScoringModel,
     audio: Audio,
     config: DetectorConfig,
     keywords: tuple[str, ...] | None = None,

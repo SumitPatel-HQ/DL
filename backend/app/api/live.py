@@ -166,7 +166,8 @@ async def receive_text(socket: WebSocket) -> Any:
 async def live(socket: WebSocket) -> None:
     live: LiveService = socket.app.state.live
     origin = socket.headers.get("origin")
-    if origin is not None and origin not in live.recordings.settings.origins:
+    hosts = (socket.headers.get("host"), socket.headers.get("x-forwarded-host"))
+    if origin is not None and not live.recordings.settings.origin_allowed(origin, hosts):
         await socket.close(code=1008)
         return
     await socket.accept()

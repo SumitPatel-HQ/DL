@@ -1,0 +1,218 @@
+{
+  "format": "kws-detector-v1",
+  "created_at": "2026-10-16T11:40:17.154911+00:00",
+  "code_revision": {
+    "commit": "14358ba172b86a9b77bfd42ccca3b79aedeedfaf",
+    "dirty": true
+  },
+  "checkpoint": {
+    "path": "live3/model.pt",
+    "sha256": "2d27a2f0d65131354903fcbf9dcc6afb7d1a744837baf527e0a7de74259e6ca6",
+    "experiment_id": "LIVE3"
+  },
+  "config": {
+    "stride_s": 0.2,
+    "threshold": 0.7,
+    "min_consecutive": 1,
+    "suppression_s": 1.0,
+    "window_s": 1.0,
+    "margin": 0.5,
+    "min_level_db": 18.0
+  },
+  "tolerance_s": 0.5,
+  "tuned_on": {
+    "dataset_version": "ami-natural-p0-v1",
+    "split_version": "in1002-test-global-speaker-disjoint-lexical-selection-v1",
+    "split": "validation",
+    "recordings": {
+      "ami-EN2004a-17603360-22403360": "4eeb67eaeb9b7f3ac9fe98b2eb2814d2bfd34c2777b44989850290a8b7067f8c",
+      "ami-EN2004a-47294400-52094400": "43079eb3641e4bee108c55705793dc45f5e87aae4b9da9685b8173d96f301d60"
+    }
+  },
+  "objective": "max validation event-F1; ties: fewer false alarms, higher threshold, larger margin, higher level gate, more consecutive windows, larger stride; suppression fixed at 1.0 s",
+  "grid": {
+    "stride_s": [
+      0.2,
+      0.25
+    ],
+    "threshold": [
+      0.3,
+      0.35,
+      0.4,
+      0.45,
+      0.5,
+      0.55,
+      0.6,
+      0.65,
+      0.7,
+      0.75,
+      0.8,
+      0.85,
+      0.9,
+      0.95
+    ],
+    "min_consecutive": [
+      1,
+      2,
+      3
+    ],
+    "margin": [
+      0.0,
+      0.3,
+      0.5,
+      0.7
+    ],
+    "min_level_db": [
+      0.0,
+      6.0,
+      12.0,
+      18.0
+    ]
+  },
+  "selected": {
+    "stride_s": 0.2,
+    "threshold": 0.7,
+    "min_consecutive": 1,
+    "suppression_s": 1.0,
+    "window_s": 1.0,
+    "margin": 0.5,
+    "min_level_db": 18.0,
+    "precision": null,
+    "recall": null,
+    "f1": null,
+    "false_alarms_per_hour": null
+  },
+  "top_candidates": [
+    {
+      "stride_s": 0.2,
+      "threshold": 0.8,
+      "min_consecutive": 1,
+      "suppression_s": 1.0,
+      "window_s": 1.0,
+      "margin": 0.7,
+      "min_level_db": 18.0,
+      "precision": 0.2,
+      "recall": 0.08,
+      "f1": 0.11428571428571428,
+      "false_alarms_per_hour": 49.97674693024774
+    },
+    {
+      "stride_s": 0.2,
+      "threshold": 0.8,
+      "min_consecutive": 1,
+      "suppression_s": 1.0,
+      "window_s": 1.0,
+      "margin": 0.7,
+      "min_level_db": 12.0,
+      "precision": 0.2,
+      "recall": 0.08,
+      "f1": 0.11428571428571428,
+      "false_alarms_per_hour": 49.97674693024774
+    },
+    {
+      "stride_s": 0.2,
+      "threshold": 0.8,
+      "min_consecutive": 1,
+      "suppression_s": 1.0,
+      "window_s": 1.0,
+      "margin": 0.7,
+      "min_level_db": 6.0,
+      "precision": 0.2,
+      "recall": 0.08,
+      "f1": 0.11428571428571428,
+      "false_alarms_per_hour": 49.97674693024774
+    },
+    {
+      "stride_s": 0.2,
+      "threshold": 0.8,
+      "min_consecutive": 1,
+      "suppression_s": 1.0,
+      "window_s": 1.0,
+      "margin": 0.7,
+      "min_level_db": 0.0,
+      "precision": 0.2,
+      "recall": 0.08,
+      "f1": 0.11428571428571428,
+      "false_alarms_per_hour": 49.97674693024774
+    },
+    {
+      "stride_s": 0.2,
+      "threshold": 0.75,
+      "min_consecutive": 1,
+      "suppression_s": 1.0,
+      "window_s": 1.0,
+      "margin": 0.7,
+      "min_level_db": 18.0,
+      "precision": 0.2,
+      "recall": 0.08,
+      "f1": 0.11428571428571428,
+      "false_alarms_per_hour": 49.97674693024774
+    },
+    {
+      "stride_s": 0.2,
+      "threshold": 0.75,
+      "min_consecutive": 1,
+      "suppression_s": 1.0,
+      "window_s": 1.0,
+      "margin": 0.7,
+      "min_level_db": 12.0,
+      "precision": 0.2,
+      "recall": 0.08,
+      "f1": 0.11428571428571428,
+      "false_alarms_per_hour": 49.97674693024774
+    },
+    {
+      "stride_s": 0.2,
+      "threshold": 0.75,
+      "min_consecutive": 1,
+      "suppression_s": 1.0,
+      "window_s": 1.0,
+      "margin": 0.7,
+      "min_level_db": 6.0,
+      "precision": 0.2,
+      "recall": 0.08,
+      "f1": 0.11428571428571428,
+      "false_alarms_per_hour": 49.97674693024774
+    },
+    {
+      "stride_s": 0.2,
+      "threshold": 0.75,
+      "min_consecutive": 1,
+      "suppression_s": 1.0,
+      "window_s": 1.0,
+      "margin": 0.7,
+      "min_level_db": 0.0,
+      "precision": 0.2,
+      "recall": 0.08,
+      "f1": 0.11428571428571428,
+      "false_alarms_per_hour": 49.97674693024774
+    },
+    {
+      "stride_s": 0.2,
+      "threshold": 0.7,
+      "min_consecutive": 1,
+      "suppression_s": 1.0,
+      "window_s": 1.0,
+      "margin": 0.7,
+      "min_level_db": 18.0,
+      "precision": 0.2,
+      "recall": 0.08,
+      "f1": 0.11428571428571428,
+      "false_alarms_per_hour": 49.97674693024774
+    },
+    {
+      "stride_s": 0.2,
+      "threshold": 0.7,
+      "min_consecutive": 1,
+      "suppression_s": 1.0,
+      "window_s": 1.0,
+      "margin": 0.7,
+      "min_level_db": 12.0,
+      "precision": 0.2,
+      "recall": 0.08,
+      "f1": 0.11428571428571428,
+      "false_alarms_per_hour": 49.97674693024774
+    }
+  ],
+  "note": "LIVE3 (full Speech Commands v0.02). Config chosen by hand to balance recall on keywords inside narrated sentences against false alarms; not a frozen-protocol result. Measured: 'Audio 1 Small.wav' (TTS story, 6 keywords) 4/6 hits, 2 false (previous 0.8/0.7/2 config: 1/6, 0); clean test-speaker command stream 28/35 hits, 21 false (previous: 22/35, 5); AMI IN1002 test 1 hit / 25 false in 10 min (previous: 0 / 5). 'up' and 'go' inside sentences score below 0.5 in every window, so no setting recovers them."
+}

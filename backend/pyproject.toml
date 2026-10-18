@@ -1,14 +1,14 @@
 [project]
 name = "kws-backend"
 version = "0.1.0"
-description = "Local CPU-only keyword spotting backend"
+description = "CPU-only keyword spotting backend"
 requires-python = ">=3.13,<3.14"
 dependencies = [
     "fastapi>=0.115,<1",
     "python-multipart>=0.0.20,<1",
     "uvicorn>=0.34,<1",
-    "torch>=2.6,<3",
     "numpy>=2,<3",
+    "onnxruntime>=1.22,<2",
     "psutil>=7,<8",
     "scipy>=1.15,<2",
     "websockets>=15,<17",
@@ -17,6 +17,15 @@ dependencies = [
     "winrt-windows-media-control>=3.2.1 ; sys_platform == 'win32'",
     "winrt-windows-foundation>=3.2.1 ; sys_platform == 'win32'",
     "winrt-windows-foundation-collections>=3.2.1 ; sys_platform == 'win32'",
+]
+
+# Training, evaluation and ONNX export need torch. The deployed API only needs
+# onnxruntime, so torch stays in an extra that `uv sync` never installs unasked.
+[project.optional-dependencies]
+train = [
+    "torch>=2.6,<3",
+    "onnx>=1.18,<2",
+    "onnxscript>=0.3,<1",
 ]
 
 [dependency-groups]
@@ -37,6 +46,9 @@ explicit = true
 [tool.uv.sources]
 torch = { index = "pytorch-cpu" }
 
+[tool.vercel]
+entrypoint = "app.main:app"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
@@ -52,3 +64,7 @@ select = ["E", "F", "I", "UP", "B"]
 python_version = "3.13"
 strict = true
 files = ["app", "ml", "../scripts"]
+
+[[tool.mypy.overrides]]
+module = ["onnxruntime", "onnxruntime.*", "onnx", "onnx.*"]
+ignore_missing_imports = true

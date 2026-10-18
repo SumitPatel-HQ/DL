@@ -18,3 +18,5 @@ artifacts/evaluations/*
 !artifacts/evaluations/.gitkeep
 artifacts/system/local*.json
 *.sqlite*
+
+frontend/public/ort/

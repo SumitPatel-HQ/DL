@@ -17,9 +17,9 @@ from app.constants import MODEL_SETUP_ACTION
 from app.db.store import ACTIVE_STATUSES, Store, is_active_status
 from app.errors import ServiceError
 from app.settings import ROOT, Settings
-from ml.checkpoint import LoadedModel, load_checkpoint
 from ml.features import FEATURE_CONFIG, LABELS
 from ml.features.pipeline import SAMPLE_RATE, WINDOW_SAMPLES, read_wav
+from ml.scoring import ScoringModel, load_model
 from ml.spotting import (
     KEYWORDS,
     DetectorConfig,
@@ -85,12 +85,12 @@ class RecordingService:
             if detector_path.is_relative_to(ROOT)
             else detector_path.as_posix()
         )
-        self.loaded: LoadedModel | None = None
+        self.loaded: ScoringModel | None = None
         self.config: DetectorConfig | None = None
         self.model_error = "checkpoint_not_installed"
         if settings.checkpoint.is_file():
             try:
-                self.loaded = load_checkpoint(settings.checkpoint)
+                self.loaded = load_model(settings.checkpoint)
                 if self.loaded.labels != LABELS:
                     raise ServiceError("vocabulary_not_reviewed", VOCABULARY_REVIEW_ACTION, 503)
                 detector = json.loads(settings.detector.read_text(encoding="utf-8"))
@@ -129,8 +129,10 @@ class RecordingService:
         self.queue: deque[str] = deque()
         self.stopping = Event()
         self.worker_error = Event()
-        self.worker = Thread(target=self._work, name="kws-analysis", daemon=False)
-        self.worker.start()
+        self.worker: Thread | None = None
+        if not settings.inline_analysis:
+            self.worker = Thread(target=self._work, name="kws-analysis", daemon=False)
+            self.worker.start()
 
     def model_health(self) -> dict[str, Any]:
         if self.worker_error.is_set():
@@ -233,10 +235,25 @@ class RecordingService:
                         recording,
                     ),
                 )
-            self.queue.append(recording)
-            result = self.get(recording)
-            self.condition.notify()
-            return result
+            if not self.settings.inline_analysis:
+                self.queue.append(recording)
+                result = self.get(recording)
+                self.condition.notify()
+                return result
+        self._analyze_now(recording)
+        return self.get(recording)
+
+    def _analyze_now(self, recording: str) -> None:
+        """Deployed: the job runs inside the analyze request and ends before it returns."""
+        try:
+            with self.store.transaction() as db:
+                db.execute("UPDATE recordings SET status='running' WHERE id=?", (recording,))
+            self._infer(recording)
+        except Exception as exc:
+            self._fail(
+                recording,
+                "persistence_error" if isinstance(exc, sqlite3.Error) else "analysis_failed",
+            )
 
     def results(self, recording: str) -> dict[str, Any]:
         with self.store.lock:
@@ -427,7 +444,8 @@ class RecordingService:
             self.stopping.set()
             self.queue.clear()
             self.condition.notify()
-        self.worker.join()
+        if self.worker is not None:
+            self.worker.join()
         try:
             with self.store.transaction() as db:
                 db.execute(

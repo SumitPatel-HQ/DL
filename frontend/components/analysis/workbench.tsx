@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type DragEvent } from "react";
 import { api, errorCode, uploadRecording, type Recording } from "../../lib/api.ts";
-import { isActive, MAX_DURATION_S, PHASE_COPY, precheck, type FileCheck } from "../../lib/analysis.ts";
+import { isActive, MAX_DURATION_S, MAX_UPLOAD_BYTES, PHASE_COPY, precheck, type FileCheck } from "../../lib/analysis.ts";
 import { describeError } from "../../lib/errors.ts";
 import { formatBytes, formatDuration } from "../../lib/format.ts";
 import { inspectWav } from "../../lib/wav.ts";
@@ -156,7 +156,7 @@ export function AnalysisWorkbench() {
           >
             <UploadIcon size={22} />
             <strong>Drop a WAV or browse</strong>
-            <span>PCM 8-96 kHz · mono/stereo · ≤ 40 MiB · ≤ {MAX_DURATION_S / 60} min</span>
+            <span>PCM 8-96 kHz · mono/stereo · ≤ {MAX_UPLOAD_BYTES / 1024 / 1024} MiB · ≤ {MAX_DURATION_S / 60} min</span>
             <input
               ref={inputRef}
               type="file"

@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useReducer, useRef, useState, type CSSProperties } from "react";
 import { api, LIVE_URL, type ActionMap } from "../../lib/api.ts";
+import { DEPLOYED } from "../../lib/deploy.ts";
+import { BrowserLiveSocket } from "../../lib/live/browser-socket.ts";
 import { formatScore } from "../../lib/format.ts";
 import { keywordColor, REJECTED_COLOR } from "../../lib/keywords.ts";
 import { micPermission, openMic, type MicPipeline } from "../../lib/live/mic.ts";
@@ -54,7 +56,7 @@ const DEFAULT_EXTERNAL_TARGETS: ExternalTarget[] = [
 
 const DEFAULT_EXTERNAL: ExternalState = {
   type: "external_state",
-  supported: true,
+  supported: !DEPLOYED,
   enabled: false,
   target_id: null,
   allowed_actions: [],
@@ -65,6 +67,15 @@ const DEFAULT_EXTERNAL: ExternalState = {
 };
 
 const BACKPRESSURE_BYTES = 256 * 1024;
+
+// Deployed there is no socket server, so the page scores the mic itself.
+// `?engine=browser` tries the in-browser engine against a local API.
+function openLiveSocket(): WebSocket | BrowserLiveSocket {
+  if (DEPLOYED || new URLSearchParams(window.location.search).get("engine") === "browser") {
+    return new BrowserLiveSocket();
+  }
+  return new WebSocket(LIVE_URL);
+}
 const LAST_DECISION_HOLD_MS = 2000;
 const STOP_REASONS: Record<string, string> = {
   user: "Stopped. The mic is released.",
@@ -103,7 +114,7 @@ export function LiveSession() {
 
   const stageRef = useRef(stage);
   const micRef = useRef<MicPipeline | null>(null);
-  const socketRef = useRef<WebSocket | null>(null);
+  const socketRef = useRef<WebSocket | BrowserLiveSocket | null>(null);
   const readyRef = useRef(false);
   const serverErrorRef = useRef<string | null>(null);
   const droppedRef = useRef(0);
@@ -394,7 +405,7 @@ export function LiveSession() {
     micRef.current = mic;
     setAnalyser(mic.analyser);
     dispatch({ type: "mic_ready" });
-    const socket = new WebSocket(LIVE_URL);
+    const socket = openLiveSocket();
     socket.binaryType = "arraybuffer";
     socketRef.current = socket;
     replayRef.current = "idle";
@@ -488,7 +499,7 @@ export function LiveSession() {
           </p>
         </div>
         <div className="live-header-actions">
-          <button
+          {DEPLOYED ? null : <button
             type="button"
             className={`live-settings-btn ${showExternal ? "is-active" : ""}`}
             onClick={() => setShowExternal((v) => !v)}
@@ -497,11 +508,11 @@ export function LiveSession() {
           >
             <Settings size={22} className="live-settings-icon" />
             {external?.enabled ? <span className="dot ok" style={{ width: 6, height: 6 }} /> : null}
-          </button>
+          </button>}
         </div>
       </div>
 
-      {showExternal ? (
+      {showExternal && !DEPLOYED ? (
         <div className="external-modal-overlay" onClick={() => setShowExternal(false)}>
           <div
             className="external-modal-content"

@@ -1,3 +1,5 @@
+import { DEPLOYED } from "./deploy.ts";
+
 // One line of cause plus one recovery for every stable error code the UI can meet.
 export type Recovery =
   | "retry"
@@ -19,7 +21,9 @@ export type ErrorCopy = { title: string; detail: string; recovery: Recovery };
 const COPY: Record<string, ErrorCopy> = {
   offline: {
     title: "Backend offline",
-    detail: "The local API on localhost:8000 is not answering. Start it with npm run api.",
+    detail: DEPLOYED
+      ? "The API is not answering. It may be starting up; retry in a few seconds."
+      : "The local API on localhost:8000 is not answering. Start it with npm run api.",
     recovery: "retry",
   },
   invalid_wav: {
@@ -44,7 +48,9 @@ const COPY: Record<string, ErrorCopy> = {
   },
   upload_too_large: {
     title: "File too large",
-    detail: "Recordings are limited to 40 MiB. Trim or downsample the WAV.",
+    detail: DEPLOYED
+      ? "The hosted API accepts WAV files up to 4 MiB. Trim the WAV or save it as 16 kHz mono."
+      : "Recordings are limited to 40 MiB. Trim or downsample the WAV.",
     recovery: "choose_file",
   },
   recording_too_long: {
@@ -237,6 +243,11 @@ const COPY: Record<string, ErrorCopy> = {
     title: "Live protocol error",
     detail: "The session closed after an unexpected message.",
     recovery: "start_again",
+  },
+  model_unavailable: {
+    title: "Model failed to load",
+    detail: "The in-browser keyword model could not be downloaded or started.",
+    recovery: "reload",
   },
   live_failed: {
     title: "Live scoring failed",

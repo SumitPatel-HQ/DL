@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "predev": "node scripts/copy-ort.mjs",
     "dev": "next dev --hostname localhost",
+    "prebuild": "node scripts/copy-ort.mjs",
     "build": "next build",
     "start": "next start --hostname localhost",
     "lint": "eslint .",
@@ -13,6 +15,7 @@
   "dependencies": {
     "lucide-react": "^1.58.0",
     "next": "16.4.1",
+    "onnxruntime-web": "^1.30.0",
     "react": "19.3.1",
     "react-dom": "19.3.1"
   },

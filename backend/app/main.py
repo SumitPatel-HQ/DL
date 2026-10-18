@@ -28,6 +28,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         jobs = RecordingService(config)
         application.state.recordings = jobs
         application.state.evaluations = EvaluationService(jobs.store, config.evaluations)
+        if config.import_evaluations:
+            # Deployed metadata lives in a fresh temp directory per instance.
+            application.state.evaluations.import_committed()
         application.state.live = LiveService(jobs)
         try:
             yield
@@ -43,7 +46,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_headers=["Content-Type", "Range"],
         expose_headers=["Content-Range", "Accept-Ranges", "Content-Length"],
     )
-    application.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost"])
+    application.add_middleware(TrustedHostMiddleware, allowed_hosts=list(config.allowed_hosts))
 
     @application.exception_handler(ServiceError)
     async def service_error(request: Request, exc: ServiceError) -> JSONResponse:

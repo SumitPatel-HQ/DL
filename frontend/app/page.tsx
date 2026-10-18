@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { ArrowRight, ChartIcon, MicIcon, WaveIcon } from "../components/icons";
 import { ModelStatus } from "../components/model-status";
+import { DEPLOYED } from "../lib/deploy";
 import { KEYWORD_ORDER } from "../lib/keywords";
 
 export const dynamic = "force-dynamic";
@@ -262,7 +263,7 @@ export default function Home() {
 
         <footer className="launcher-status" aria-label="System status">
           <div className="launcher-status-group">
-            <span className="launcher-status-item">Local CPU inference (127.0.0.1)</span>
+            <span className="launcher-status-item">{DEPLOYED ? "CPU inference · live mic scored in your browser" : "Local CPU inference (127.0.0.1)"}</span>
             <span className="launcher-status-sep" aria-hidden="true">·</span>
             <span className="launcher-status-item">6-keyword LSTM</span>
             <span className="launcher-status-sep" aria-hidden="true">·</span>

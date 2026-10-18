@@ -1,4 +1,7 @@
-export const API_BASE = "http://localhost:8000";
+import { DEPLOYED } from "./deploy.ts";
+
+// Deployed, the API shares the site's origin; locally it listens on loopback.
+export const API_BASE = DEPLOYED ? "" : "http://localhost:8000";
 export const LIVE_URL = "ws://localhost:8000/api/live";
 
 export class ApiError extends Error {
@@ -257,7 +260,7 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   try {
     response = await fetch(`${API_BASE}${path}`, { cache: "no-store", ...init });
   } catch {
-    throw new ApiError("offline", 0, "The local API is not reachable.");
+    throw new ApiError("offline", 0, "The API is not reachable.");
   }
   if (response.status === 204) return undefined as T;
   let body: unknown = null;
@@ -343,7 +346,7 @@ export function uploadRecording(
           ),
         );
     };
-    xhr.onerror = () => reject(new ApiError("offline", 0, "The local API is not reachable."));
+    xhr.onerror = () => reject(new ApiError("offline", 0, "The API is not reachable."));
     xhr.onabort = () => reject(new ApiError("upload_cancelled", 0, "Upload cancelled."));
     signal?.addEventListener("abort", () => xhr.abort(), { once: true });
     const form = new FormData();

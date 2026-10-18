@@ -1,3 +1,5 @@
+import { DEPLOYED } from "./deploy.ts";
+
 export type Health = {
   status: "ok";
   model: {
@@ -11,8 +13,11 @@ export type Health = {
 };
 
 export async function getHealth(): Promise<Health> {
-  const base = new URL(process.env.API_BASE_URL ?? "http://localhost:8000");
-  if (base.href !== "http://localhost:8000/" && base.href !== "http://127.0.0.1:8000/") {
+  // Deployed, the Vercel service binding (vercel.json) supplies the API's internal URL.
+  const base = new URL(
+    (DEPLOYED ? process.env.BACKEND_URL : process.env.API_BASE_URL) ?? "http://localhost:8000",
+  );
+  if (!DEPLOYED && base.href !== "http://localhost:8000/" && base.href !== "http://127.0.0.1:8000/") {
     throw new Error("API_BASE_URL must be http://localhost:8000 or http://127.0.0.1:8000.");
   }
   const response = await fetch(new URL("/api/health", base), {

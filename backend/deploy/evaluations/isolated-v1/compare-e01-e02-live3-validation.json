@@ -1,0 +1,65 @@
+{
+  "dataset": {
+    "dataset_version": "speech-commands-v0.02-p0-subset-v1",
+    "split_version": "speaker-sha256-80-10-10-noise-source-round-robin-v1",
+    "manifest_sha256": "18d35280a2d421f0c1fea16fffb93950c4d3f3fba37b4124772ca6d36030b9eb",
+    "normalization_sha256": "83f32c1fdacc83472432b56c0b15f89d0582755e1285fb6ff24f0a873a3a0b68",
+    "split": "validation"
+  },
+  "runs": [
+    {
+      "experiment_id": "E01",
+      "run_id": "e01-isolated-validation-519de98bae5d",
+      "checkpoint_sha256": "519de98bae5d065615844b23ef3041b71ffca0c88319f6e943b320e0075e3089",
+      "num_layers": 1,
+      "hidden_size": 64,
+      "parameters": 27656,
+      "checkpoint_bytes": 118077,
+      "macro_f1": 0.5473863391572038,
+      "accuracy": 0.5550098231827112,
+      "model_forward_median_ms": 0.519749999511987,
+      "features_plus_forward_median_ms": 1.5734999979031272,
+      "mean_train_epoch_seconds": 0.38426137368629787,
+      "best_epoch": 9,
+      "epochs_run": 19,
+      "training_peak_rss_bytes": 491786240,
+      "checkpoint_dataset_version": null
+    },
+    {
+      "experiment_id": "E02",
+      "run_id": "e02-isolated-validation-e47e49f57e81",
+      "checkpoint_sha256": "e47e49f57e81a4d4352efece7c0af798c37527014117fe0ebc554129b4b7589d",
+      "num_layers": 2,
+      "hidden_size": 128,
+      "parameters": 220168,
+      "checkpoint_bytes": 888997,
+      "macro_f1": 0.6745136971082188,
+      "accuracy": 0.6650294695481336,
+      "model_forward_median_ms": 1.7372500005876645,
+      "features_plus_forward_median_ms": 2.8771499928552657,
+      "mean_train_epoch_seconds": 2.133301644999301,
+      "best_epoch": 10,
+      "epochs_run": 20,
+      "training_peak_rss_bytes": 576016384,
+      "checkpoint_dataset_version": null
+    },
+    {
+      "experiment_id": "LIVE3",
+      "run_id": "live3-isolated-validation-2d27a2f0d651",
+      "checkpoint_sha256": "2d27a2f0d65131354903fcbf9dcc6afb7d1a744837baf527e0a7de74259e6ca6",
+      "num_layers": 2,
+      "hidden_size": 128,
+      "parameters": 220168,
+      "checkpoint_bytes": 887525,
+      "macro_f1": 0.7550316764312258,
+      "accuracy": 0.7347740667976425,
+      "model_forward_median_ms": 3.0161000013322337,
+      "features_plus_forward_median_ms": 4.411349998918013,
+      "mean_train_epoch_seconds": null,
+      "best_epoch": 3,
+      "epochs_run": 9,
+      "training_peak_rss_bytes": null,
+      "checkpoint_dataset_version": "speech_commands_full"
+    }
+  ]
+}

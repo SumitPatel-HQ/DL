@@ -2,7 +2,7 @@
   "name": "keyword-spotting",
   "private": true,
   "scripts": {
-    "setup": "uv sync --project backend --locked && npm ci --prefix frontend",
+    "setup": "uv sync --project backend --locked --extra train && npm ci --prefix frontend",
     "api": "uv run --project backend python scripts/serve.py",
     "web": "npm run dev --prefix frontend",
     "check": "uv run --project backend python scripts/check.py",

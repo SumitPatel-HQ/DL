@@ -30,3 +30,7 @@ Once running, open the application in your browser:
 - Audio analysis: http://localhost:3000/analyze
 - Live voice control: http://localhost:3000/live
 - Evaluation dashboard: http://localhost:3000/dashboard
+
+## 3. Deploying
+
+See [docs/deploy.md](docs/deploy.md) to deploy the frontend and backend to Vercel.

@@ -1,3 +1,4 @@
+import { DEPLOYED } from "../lib/deploy";
 import { getHealth } from "../lib/health";
 
 export async function ModelStatus() {
@@ -9,7 +10,11 @@ export async function ModelStatus() {
       <section className="banner error" aria-labelledby="status-heading" role="alert">
         <div className="banner-body">
           <strong id="status-heading">Backend disconnected</strong>
-          <span>Start the API with <code>npm run api</code>, check API_BASE_URL, then refresh this page.</span>
+          {DEPLOYED ? (
+            <span>The API did not answer. It may be starting up; refresh this page in a few seconds.</span>
+          ) : (
+            <span>Start the API with <code>npm run api</code>, check API_BASE_URL, then refresh this page.</span>
+          )}
         </div>
       </section>
     );
