@@ -20,12 +20,18 @@ ISOLATED = {
     "e01-isolated-validation-519de98bae5d",
     "e02-isolated-test-e47e49f57e81",
     "e02-isolated-validation-e47e49f57e81",
+    "live3-isolated-test-2d27a2f0d651",
+    "live3-isolated-validation-2d27a2f0d651",
 }
 CONTINUOUS = {"e02-continuous-test-e47e49f57e81", "e02-continuous-validation-e47e49f57e81"}
 TEMPORAL = {"t01-continuous-test-7db0c2ab9f0a", "t01-continuous-validation-7db0c2ab9f0a"}
 NOISE_ISOLATED = {
     "e02-isolated-test-clean-e47e49f57e81",
     "e02-isolated-test-noisy-e47e49f57e81",
+    "e01-isolated-test-clean-519de98bae5d",
+    "e01-isolated-test-noisy-519de98bae5d",
+    "live3-isolated-test-clean-2d27a2f0d651",
+    "live3-isolated-test-noisy-2d27a2f0d651",
 }
 NOISE_CONTINUOUS = {
     "e02-continuous-test-clean-e47e49f57e81",
@@ -356,9 +362,9 @@ def test_store_from_before_evaluation_api_upgrades_reserved_table(tmp_path: Path
     legacy.close()
     with open_client(config) as client:
         assert client.post("/api/evaluations/import").status_code == 200
-        assert len(client.get("/api/evaluations").json()["runs"]) == 12
+        assert len(client.get("/api/evaluations").json()["runs"]) == 18
     with open_client(config) as client:
-        assert len(client.get("/api/evaluations").json()["runs"]) == 12
+        assert len(client.get("/api/evaluations").json()["runs"]) == 18
 
 
 def test_compare_matched_isolated_pair_reads_both_runs_side_by_side(
@@ -401,6 +407,34 @@ def test_compare_matched_isolated_pair_reads_both_runs_side_by_side(
         e01, e02 = body["runs"]
         assert e01["metrics"]["macro_f1"] != e02["metrics"]["macro_f1"]
         assert e01["provenance"]["checkpoint_sha256"] != e02["provenance"]["checkpoint_sha256"]
+
+
+def test_live_checkpoint_run_compares_on_shared_split_without_guessed_training_facts(
+    tmp_path: Path,
+) -> None:
+    """LIVE3 trained on full Speech Commands but is scored on the shared P0 test split."""
+    with open_client(settings(tmp_path)) as client:
+        client.post("/api/evaluations/import")
+        live3 = client.get("/api/evaluations/live3-isolated-test-2d27a2f0d651").json()
+        assert live3["provenance"]["checkpoint_sha256"].startswith("2d27a2f0")
+        assert live3["provenance"]["dataset_version"] == "speech-commands-v0.02-p0-subset-v1"
+        assert live3["provenance"]["checkpoint_dataset_version"] == "speech_commands_full"
+        assert live3["metrics"]["examples"] == 1017
+        # The live training log never recorded these, so they stay null.
+        training = live3["training"]
+        assert training["train_examples"] is None
+        assert training["stopped_early"] is None
+        assert training["epochs_run"] == len(training["curves"])
+        assert all(epoch["train_accuracy"] is None for epoch in training["curves"])
+        assert all(epoch["validation_macro_f1"] is None for epoch in training["curves"])
+
+        for baseline in ("e01-isolated-test-519de98bae5d", "e02-isolated-test-e47e49f57e81"):
+            response = client.get(
+                "/api/evaluations/compare",
+                params={"run_a": baseline, "run_b": "live3-isolated-test-2d27a2f0d651"},
+            )
+            assert response.status_code == 200
+            assert response.json()["comparison_type"] == "model"
 
 
 def test_compare_matched_continuous_pair_keeps_event_numbers_separate(

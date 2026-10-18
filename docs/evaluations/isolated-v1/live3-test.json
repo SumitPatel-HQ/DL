@@ -1,0 +1,366 @@
+{
+  "run_id": "live3-isolated-test-2d27a2f0d651",
+  "kind": "isolated",
+  "created_at": "2026-10-18T12:06:29.626947+00:00",
+  "code_revision": {
+    "commit": "c9800358b60497e7fd66bf51ac9c4b86e9321784",
+    "dirty": true
+  },
+  "experiment_id": "LIVE3",
+  "checkpoint": {
+    "path": "live3/model.pt",
+    "sha256": "2d27a2f0d65131354903fcbf9dcc6afb7d1a744837baf527e0a7de74259e6ca6",
+    "bytes": 887525,
+    "created_at": "2026-10-16T11:32:01.185834+00:00",
+    "code_revision": {
+      "commit": "14358ba172b86a9b77bfd42ccca3b79aedeedfaf",
+      "dirty": true
+    }
+  },
+  "config": {
+    "experiment_id": "LIVE3",
+    "augmentation": "gain/noise/shift+tts-oov",
+    "speech_root": "speech_commands_full",
+    "unknown_words": [
+      "backward",
+      "bed",
+      "bird",
+      "cat",
+      "dog",
+      "eight",
+      "five",
+      "follow",
+      "forward",
+      "four",
+      "happy",
+      "house",
+      "learn",
+      "marvin",
+      "nine",
+      "no",
+      "off",
+      "on",
+      "one",
+      "seven",
+      "sheila",
+      "six",
+      "three",
+      "tree",
+      "two",
+      "visual",
+      "wow",
+      "yes",
+      "zero"
+    ],
+    "unknown_cap": 400,
+    "seed": 42
+  },
+  "config_sha256": "efd9efa9d944807c8782ce5e8038fc68812de553416925e74d22bcb6eefe0616",
+  "network": {
+    "type": "lstm",
+    "hidden_size": 128,
+    "num_layers": 2,
+    "dropout": 0.4,
+    "pooling": "mean-over-frames",
+    "parameters": 220168
+  },
+  "labels": [
+    "left",
+    "right",
+    "up",
+    "down",
+    "go",
+    "stop",
+    "unknown",
+    "silence"
+  ],
+  "features": {
+    "version": "mfcc-v1",
+    "sample_rate": 16000,
+    "channels": 1,
+    "dtype": "float32",
+    "frame_ms": 25,
+    "hop_ms": 10,
+    "n_mfcc": 40,
+    "n_mels": 40,
+    "n_fft": 512,
+    "window_samples": 16000,
+    "window": "symmetric-hamming",
+    "mel_scale": "htk-unscaled-triangles-20-7600Hz",
+    "spectrum": "abs-rfft-squared/512",
+    "log": "natural-floor-1e-10",
+    "dct": "type-2-ortho",
+    "padding": "right-zero-to-1s-truncate-longer-no-center",
+    "resampling": "scipy-resample-poly-kaiser-5-constant",
+    "normalization": "train-only-per-coefficient-population-std-floor-1e-6"
+  },
+  "dataset": {
+    "dataset_version": "speech-commands-v0.02-p0-subset-v1",
+    "split_version": "speaker-sha256-80-10-10-noise-source-round-robin-v1",
+    "manifest_sha256": "18d35280a2d421f0c1fea16fffb93950c4d3f3fba37b4124772ca6d36030b9eb",
+    "normalization_sha256": "83f32c1fdacc83472432b56c0b15f89d0582755e1285fb6ff24f0a873a3a0b68",
+    "split": "test",
+    "condition": "clean",
+    "noise_sources": [
+      "exercise_bike",
+      "white_noise"
+    ],
+    "snr_db": null,
+    "noise_sources_by_split": {},
+    "checkpoint_dataset_version": "speech_commands_full"
+  },
+  "metrics": {
+    "examples": 1017,
+    "accuracy": 0.7807276302851525,
+    "macro_f1": 0.7966713236554862,
+    "per_class": {
+      "left": {
+        "precision": 0.9391304347826087,
+        "recall": 0.84375,
+        "f1": 0.888888888888889,
+        "support": 128
+      },
+      "right": {
+        "precision": 0.9795918367346939,
+        "recall": 0.75,
+        "f1": 0.8495575221238937,
+        "support": 128
+      },
+      "up": {
+        "precision": 0.974025974025974,
+        "recall": 0.5859375,
+        "f1": 0.7317073170731707,
+        "support": 128
+      },
+      "down": {
+        "precision": 0.7573529411764706,
+        "recall": 0.8046875,
+        "f1": 0.7803030303030303,
+        "support": 128
+      },
+      "go": {
+        "precision": 0.8407079646017699,
+        "recall": 0.7421875,
+        "f1": 0.7883817427385892,
+        "support": 128
+      },
+      "stop": {
+        "precision": 0.8956521739130435,
+        "recall": 0.8046875,
+        "f1": 0.8477366255144032,
+        "support": 128
+      },
+      "unknown": {
+        "precision": 0.3940677966101695,
+        "recall": 0.7265625,
+        "f1": 0.510989010989011,
+        "support": 128
+      },
+      "silence": {
+        "precision": 0.952755905511811,
+        "recall": 1.0,
+        "f1": 0.9758064516129031,
+        "support": 121
+      }
+    },
+    "confusion_matrix": {
+      "rows": "true",
+      "columns": "detected",
+      "values": [
+        [
+          108,
+          0,
+          0,
+          1,
+          1,
+          0,
+          18,
+          0
+        ],
+        [
+          3,
+          96,
+          0,
+          0,
+          0,
+          0,
+          29,
+          0
+        ],
+        [
+          0,
+          0,
+          75,
+          4,
+          1,
+          6,
+          42,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          103,
+          4,
+          5,
+          16,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          8,
+          95,
+          0,
+          23,
+          2
+        ],
+        [
+          0,
+          0,
+          1,
+          6,
+          2,
+          103,
+          15,
+          1
+        ],
+        [
+          4,
+          2,
+          1,
+          14,
+          10,
+          1,
+          93,
+          3
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          121
+        ]
+      ]
+    },
+    "silence_recall_by_source": {
+      "exercise_bike": 1.0,
+      "white_noise": 1.0
+    }
+  },
+  "target": {
+    "macro_f1": 0.85,
+    "met": false,
+    "note": "Hypothesis target; unmet targets are reported, never redefined."
+  },
+  "training": {
+    "best_epoch": 3,
+    "best_validation_loss": 0.4395911693572998,
+    "total_seconds": 1055.7066991000029,
+    "epochs_run": 9,
+    "train_examples": null,
+    "validation_examples": null,
+    "stopped_early": null
+  },
+  "curves": [
+    {
+      "epoch": 1,
+      "train_loss": 1.3043096961573803,
+      "train_accuracy": null,
+      "validation_loss": 0.5958041548728943,
+      "validation_accuracy": 0.8473190665245056,
+      "validation_macro_f1": null
+    },
+    {
+      "epoch": 2,
+      "train_loss": 0.7377882612168851,
+      "train_accuracy": null,
+      "validation_loss": 0.6647582054138184,
+      "validation_accuracy": 0.7788531184196472,
+      "validation_macro_f1": null
+    },
+    {
+      "epoch": 3,
+      "train_loss": 0.5823264855218535,
+      "train_accuracy": null,
+      "validation_loss": 0.4395911693572998,
+      "validation_accuracy": 0.8610242605209351,
+      "validation_macro_f1": null
+    },
+    {
+      "epoch": 4,
+      "train_loss": 0.532617405812446,
+      "train_accuracy": null,
+      "validation_loss": 0.7393984198570251,
+      "validation_accuracy": 0.776328444480896,
+      "validation_macro_f1": null
+    },
+    {
+      "epoch": 5,
+      "train_loss": 0.505895046046198,
+      "train_accuracy": null,
+      "validation_loss": 0.6182528734207153,
+      "validation_accuracy": 0.8102308511734009,
+      "validation_macro_f1": null
+    },
+    {
+      "epoch": 6,
+      "train_loss": 0.4872370152777292,
+      "train_accuracy": null,
+      "validation_loss": 0.6150141954421997,
+      "validation_accuracy": 0.8044602274894714,
+      "validation_macro_f1": null
+    },
+    {
+      "epoch": 7,
+      "train_loss": 0.4738867151869222,
+      "train_accuracy": null,
+      "validation_loss": 0.6537452340126038,
+      "validation_accuracy": 0.8093291521072388,
+      "validation_macro_f1": null
+    },
+    {
+      "epoch": 8,
+      "train_loss": 0.4703795399815747,
+      "train_accuracy": null,
+      "validation_loss": 0.5663626790046692,
+      "validation_accuracy": 0.8358980417251587,
+      "validation_macro_f1": null
+    },
+    {
+      "epoch": 9,
+      "train_loss": 0.4563174228971235,
+      "train_accuracy": null,
+      "validation_loss": 0.7006940841674805,
+      "validation_accuracy": 0.796705961227417,
+      "validation_macro_f1": null
+    }
+  ],
+  "runtime": {
+    "machine": {
+      "os": "Windows-11-10.0.26300-SP0",
+      "cpu": "AMD64 Family 23 Model 104 Stepping 1, AuthenticAMD"
+    },
+    "evaluation_seconds": 0.7644398000011279,
+    "peak_rss_bytes": 516759552,
+    "single_window_latency": {
+      "runs": 200,
+      "torch_threads": 6,
+      "model_forward_ms": {
+        "median": 2.6480500018806197,
+        "p95": 3.514659998654679
+      },
+      "features_plus_forward_ms": {
+        "median": 4.117649998079287,
+        "p95": 5.568255000980571
+      },
+      "note": "Timing input is not evaluation data; streaming latency is measured later."
+    }
+  }
+}

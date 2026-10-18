@@ -292,17 +292,24 @@ function ContinuousNoiseDetail({ clean, noisy }: { clean: ContinuousRun; noisy: 
 export function NoiseComparisonSection({
   runs,
   kind,
+  activeId,
   online,
   onImport,
   busy,
 }: {
   runs: readonly RunSummary[];
   kind: RunKind;
+  /** Checkpoint the service runs; its pair is shown first. */
+  activeId: string | null;
   online: boolean;
   onImport: () => void;
   busy: boolean;
 }) {
-  const pairs = useMemo(() => noisePairs(runs, kind), [runs, kind]);
+  const pairs = useMemo(() => {
+    const isActive = (pair: NoisePair) => Number(pair.clean.provenance.checkpoint_sha256 === activeId);
+    return noisePairs(runs, kind).sort((a, b) => isActive(b) - isActive(a));
+  }, [runs, kind, activeId]);
+  const [picked, setPicked] = useState<string | null>(null);
   if (!online) return null;
   if (pairs.length === 0) {
     return (
@@ -323,11 +330,32 @@ export function NoiseComparisonSection({
       </section>
     );
   }
+  const pairKey = (pair: NoisePair) => `${pair.clean.id}::${pair.noisy.id}`;
+  // A pick that no longer exists (deleted run) falls back to the first pair.
+  const pair = pairs.find((p) => pairKey(p) === picked) ?? pairs[0];
   return (
     <div style={{ display: "grid", gap: 16 }}>
-      {pairs.map((pair) => (
-        <NoisePairView key={`${pair.clean.id}::${pair.noisy.id}`} pair={pair} online={online} />
-      ))}
+      <div className="controls">
+        <div className="control">
+          <span className="label">Model checkpoint</span>
+          <div className="seg" role="group" aria-label="Model checkpoint">
+            {pairs.map((p) => (
+              <button
+                key={pairKey(p)}
+                type="button"
+                aria-pressed={p === pair}
+                title={`${p.clean.id} vs ${p.noisy.id}`}
+                onClick={() => setPicked(pairKey(p))}
+              >
+                <b>{p.clean.experiment_id}</b>{" "}
+                <span className="mono">{shortHash(p.clean.provenance.checkpoint_sha256, 8)}</span>
+                {p.clean.provenance.checkpoint_sha256 === activeId ? <span className="tag ok">active</span> : null}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+      <NoisePairView key={pairKey(pair)} pair={pair} online={online} />
     </div>
   );
 }

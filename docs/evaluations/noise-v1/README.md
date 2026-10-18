@@ -74,3 +74,30 @@ checkpoint trained on (`checkpoint_dataset_version`), because
 `--allow-different-dataset` bypasses the dataset-version check; the normalization
 hash is still checked. The API names a pair with a `comparison_id`
 (`<clean run id>..<noisy run id>`).
+
+## E01 and LIVE3 isolated noise runs
+
+The same isolated clean/noisy protocol was run for E01 and LIVE3 on
+2026-10-18 (same noise cache, 10 dB SNR, test split, 1,077 clips):
+
+| Checkpoint | Clean macro-F1 | Noisy macro-F1 | Δ |
+|---|---|---|---|
+| E01 `519de98b` | 0.643 | 0.248 | −0.395 |
+| E02 `e47e49f5` | 0.727 | 0.188 | −0.539 |
+| LIVE3 `2d27a2f0` | 0.798 | 0.726 | −0.072 |
+
+LIVE3 trained with gain/noise/shift augmentation (train-split noise plus
+synthetic noise) on full Speech Commands, which is the likely reason it keeps
+most of its score; its weakest noisy classes are `up` (F1 0.621), `down` (0.636)
+and `stop` (0.664, many false `stop` detections). The comparison is not fully
+like-for-like: the test noise files (`exercise_bike`, `violet_noise`,
+`white_noise`) were never read in training, but `ml.train_live` also mixes in
+synthetic white, pink and brown noise, so the white-noise part of the noisy
+test is close to LIVE3's training distribution. E01 and E02 saw no synthetic
+noise. Continuous noise runs exist only for E02.
+
+```powershell
+uv run --locked python -m ml.evaluate run --checkpoint ../artifacts/models/live3/model.pt --features ../data/noise-isolated/features --split test --condition noisy --allow-different-dataset --output ../artifacts/evaluations/noise-v1/live3-isolated-test-noisy.json
+```
+
+Repeat with `--condition clean` and for `e01`.

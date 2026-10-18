@@ -136,13 +136,14 @@ export type ClassMetrics = {
   support: number;
 };
 
+/** Null marks a value the checkpoint's training log never recorded (live checkpoints). */
 export type EpochCurve = {
   epoch: number;
   train_loss: number;
-  train_accuracy: number;
+  train_accuracy: number | null;
   validation_loss: number;
   validation_accuracy: number;
-  validation_macro_f1: number;
+  validation_macro_f1: number | null;
 };
 
 export type IsolatedRun = RunSummary & {
@@ -159,12 +160,12 @@ export type IsolatedRun = RunSummary & {
     silence_recall_by_source?: Record<string, number>;
   };
   training: {
-    train_examples: number;
-    validation_examples: number;
+    train_examples: number | null;
+    validation_examples: number | null;
     epochs_run: number;
     best_epoch: number;
     best_validation_loss: number;
-    stopped_early: boolean;
+    stopped_early: boolean | null;
     curves: EpochCurve[];
   };
 };

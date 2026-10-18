@@ -90,8 +90,8 @@ export function BackendPill() {
       );
     case "ready":
       return (
-        <span className="pill" role="status" title={`Checkpoint ${backend.model.id}`}>
-          <span className="dot ok" /> <strong>Model</strong> ready
+        <span className="pill" role="status" title={`Ready · checkpoint ${backend.model.id}`}>
+          <span className="dot ok" /> <strong>Model</strong> {backend.model.version ?? "ready"}
         </span>
       );
   }

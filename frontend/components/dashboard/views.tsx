@@ -126,15 +126,19 @@ export function IsolatedView({ run }: { run: IsolatedRun }) {
     { key: "train_loss", label: "train loss", color: "var(--series-train)", values: curves.map((c) => c.train_loss) },
     { key: "val_loss", label: "validation loss", color: "var(--series-val)", values: curves.map((c) => c.validation_loss) },
   ];
+  // Live checkpoints never logged train accuracy or validation macro-F1; those
+  // series are dropped rather than drawn from guessed values.
   const quality: Series[] = [
-    { key: "train_acc", label: "train accuracy", color: "var(--series-train)", values: curves.map((c) => c.train_accuracy) },
+    { key: "train_acc", label: "train accuracy", color: "var(--series-train)", values: curves.map((c) => c.train_accuracy ?? NaN) },
     { key: "val_acc", label: "validation accuracy", color: "var(--series-val)", values: curves.map((c) => c.validation_accuracy) },
-    { key: "val_f1", label: "validation macro-F1", color: "var(--series-f1)", values: curves.map((c) => c.validation_macro_f1) },
-  ];
+    { key: "val_f1", label: "validation macro-F1", color: "var(--series-f1)", values: curves.map((c) => c.validation_macro_f1 ?? NaN) },
+  ].filter((s) => s.values.some(Number.isFinite));
   const maxLoss = Math.max(...loss.flatMap((s) => s.values));
   const m = run.metrics;
   const best = curves.find((c) => c.epoch === run.training.best_epoch);
   const lastEpoch = curves[curves.length - 1];
+  const lastTrainAccuracy = lastEpoch?.train_accuracy ?? null;
+  const { train_examples: trainClips, validation_examples: validationClips } = run.training;
   return (
     <>
       <div className="tiles">
@@ -155,11 +159,14 @@ export function IsolatedView({ run }: { run: IsolatedRun }) {
         />
         <Tile
           title="Train vs validation gap"
-          value={lastEpoch ? <>{((lastEpoch.train_accuracy - lastEpoch.validation_accuracy) * 100).toFixed(1)}<small> pp</small></> : "—"}
+          value={lastEpoch && lastTrainAccuracy !== null ? <>{((lastTrainAccuracy - lastEpoch.validation_accuracy) * 100).toFixed(1)}<small> pp</small></> : "—"}
           detail={
-            lastEpoch && best ? (
-              <>final train acc {formatPercent(lastEpoch.train_accuracy)} vs validation {formatPercent(lastEpoch.validation_accuracy)}; at best epoch {formatPercent(best.validation_accuracy)}</>
-            ) : "No curves in this run"
+            !lastEpoch || !best ? "No curves in this run"
+            : lastTrainAccuracy === null ? (
+              <>train accuracy not logged by this checkpoint; validation {formatPercent(lastEpoch.validation_accuracy)} at last epoch, {formatPercent(best.validation_accuracy)} at best epoch</>
+            ) : (
+              <>final train acc {formatPercent(lastTrainAccuracy)} vs validation {formatPercent(lastEpoch.validation_accuracy)}; at best epoch {formatPercent(best.validation_accuracy)}</>
+            )
           }
         />
       </div>
@@ -168,7 +175,11 @@ export function IsolatedView({ run }: { run: IsolatedRun }) {
           <div className="card-head">
             <div>
               <h3>Loss per epoch</h3>
-              <p className="sub">Training log saved with the checkpoint · {run.training.train_examples} train / {run.training.validation_examples} validation clips</p>
+              <p className="sub">
+                Training log saved with the checkpoint
+                {trainClips !== null && validationClips !== null ? ` · ${trainClips} train / ${validationClips} validation clips` : ""}
+                {run.provenance.checkpoint_dataset_version ? ` · trained on ${run.provenance.checkpoint_dataset_version}` : ""}
+              </p>
             </div>
             <Legend series={loss} />
           </div>

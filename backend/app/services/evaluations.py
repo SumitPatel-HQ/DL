@@ -127,22 +127,24 @@ class IsolatedMetrics(Document):
     silence_recall_by_source: dict[str, Score] = Field(default_factory=dict)
 
 
+# Live checkpoints (ml.train_live) log fewer training facts than P0 ones;
+# a field the checkpoint never recorded stays None rather than being guessed.
 class Epoch(Document):
     epoch: Annotated[int, Field(ge=1)]
     train_loss: float
-    train_accuracy: Score
+    train_accuracy: Score | None = None
     validation_loss: float
     validation_accuracy: Score
-    validation_macro_f1: Score
+    validation_macro_f1: Score | None = None
 
 
 class Training(Document):
-    train_examples: Count
-    validation_examples: Count
+    train_examples: Count | None = None
+    validation_examples: Count | None = None
     epochs_run: Count
     best_epoch: Annotated[int, Field(ge=1)]
     best_validation_loss: float
-    stopped_early: bool
+    stopped_early: bool | None = None
 
 
 class IsolatedRun(Run):
@@ -369,6 +371,7 @@ def provenance(run: EvaluationRun) -> dict[str, Any]:
         facts["noise_sources"] = run.dataset.noise_sources
         facts["snr_db"] = run.dataset.snr_db
         facts["noise_sources_by_split"] = run.dataset.noise_sources_by_split
+    if run.dataset.checkpoint_dataset_version or "condition" in facts:
         facts["checkpoint_dataset_version"] = run.dataset.checkpoint_dataset_version
     return facts
 

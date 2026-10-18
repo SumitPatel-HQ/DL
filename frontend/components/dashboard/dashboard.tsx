@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, errorCode, type RunDetail, type RunKind, type RunSummary } from "../../lib/api.ts";
-import { modelOptions, runsFor, type ModelOption } from "../../lib/evaluations.ts";
+import { modelOptions, numberedSplitLabels, runsFor, type ModelOption } from "../../lib/evaluations.ts";
 import { formatTimestamp, shortHash } from "../../lib/format.ts";
 import { ChartIcon, DatabaseIcon, TrashIcon, XIcon } from "../icons";
 import { useBackend } from "../shell/backend";
@@ -17,13 +17,16 @@ type Detail =
 
 type ViewMode = "single" | "compare" | "noise";
 
+// Continuous detection is hidden while it is experimental. Set true to show it again.
+const SHOW_CONTINUOUS_TAB = false;
+
 export function EvaluationDashboard({ initialTab, initialRun }: { initialTab: RunKind; initialRun: string | null }) {
   const { backend, refresh } = useBackend();
   const activeId = backend.status === "ready" ? backend.model.id : null;
   const [runs, setRuns] = useState<RunSummary[] | null>(null);
   const [listError, setListError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
-  const [tab, setTab] = useState<RunKind>(initialTab);
+  const [tab, setTab] = useState<RunKind>(SHOW_CONTINUOUS_TAB ? initialTab : "isolated");
   const [mode, setMode] = useState<ViewMode>("single");
   const [checkpoint, setCheckpoint] = useState<string | null>(null);
   // undefined: follow the first run; null: nothing selected (after a deletion, never a fallback).
@@ -54,17 +57,21 @@ export function EvaluationDashboard({ initialTab, initialRun }: { initialTab: Ru
   }, [online, reload]);
 
   const options = useMemo<ModelOption[]>(() => {
-    const list = modelOptions(runs ?? [], activeId);
+    // Only checkpoints with runs of the current tab's kind; the active model always stays listed.
+    const list = modelOptions(runs ?? [], activeId).filter(
+      (o) => o.checkpoint === activeId || runsFor(runs ?? [], tab, o.checkpoint).length > 0,
+    );
     if (activeId && backend.status === "ready" && !list.some((o) => o.checkpoint === activeId)) {
       list.unshift({ checkpoint: activeId, experiment: backend.model.version ?? "active", active: true, runs: 0 });
     }
     return list;
-  }, [runs, activeId, backend]);
+  }, [runs, activeId, backend, tab]);
 
   const initialRunSummary = runs?.find((r) => r.id === initialRun);
   const model =
     checkpoint ?? initialRunSummary?.provenance.checkpoint_sha256 ?? options[0]?.checkpoint ?? null;
   const tabRuns = useMemo(() => runsFor(runs ?? [], tab, model), [runs, tab, model]);
+  const runChipLabels = useMemo(() => numberedSplitLabels(tabRuns), [tabRuns]);
   const selectedId = runId === undefined ? tabRuns[0]?.id ?? null : runId;
   const selected = tabRuns.find((r) => r.id === selectedId) ?? null;
   const shown =
@@ -171,9 +178,6 @@ export function EvaluationDashboard({ initialTab, initialRun }: { initialTab: Ru
             config, and timestamp. Isolated clip classification and continuous-event detection never share a view.
           </p>
         </div>
-        <button type="button" className="btn" onClick={importRuns} disabled={busy || !online}>
-          <DatabaseIcon size={15} /> Import committed runs
-        </button>
       </div>
 
       <div style={{ display: "grid", gap: 12, marginBottom: 16 }}>
@@ -195,9 +199,11 @@ export function EvaluationDashboard({ initialTab, initialRun }: { initialTab: Ru
         <button type="button" role="tab" aria-selected={tab === "isolated"} onClick={() => chooseTab("isolated")}>
           Isolated classification <span className="tag">1 s clips</span>
         </button>
-        <button type="button" role="tab" aria-selected={tab === "continuous"} onClick={() => chooseTab("continuous")}>
-          Continuous detection <span className="tag warn">experimental</span>
-        </button>
+        {SHOW_CONTINUOUS_TAB ? (
+          <button type="button" role="tab" aria-selected={tab === "continuous"} onClick={() => chooseTab("continuous")}>
+            Continuous detection <span className="tag warn">experimental</span>
+          </button>
+        ) : null}
       </div>
 
       <div className="controls">
@@ -208,7 +214,7 @@ export function EvaluationDashboard({ initialTab, initialRun }: { initialTab: Ru
               Single run
             </button>
             <button type="button" aria-pressed={mode === "compare"} onClick={() => setMode("compare")}>
-              Compare E01 vs E02
+              Compare models
             </button>
             <button type="button" aria-pressed={mode === "noise"} onClick={() => setMode("noise")}>
               Clean vs noisy
@@ -221,6 +227,7 @@ export function EvaluationDashboard({ initialTab, initialRun }: { initialTab: Ru
         <ComparisonSection
           runs={runs ?? []}
           kind={tab}
+          activeId={activeId}
           online={online}
           onImport={importRuns}
           busy={busy}
@@ -231,6 +238,7 @@ export function EvaluationDashboard({ initialTab, initialRun }: { initialTab: Ru
         <NoiseComparisonSection
           runs={runs ?? []}
           kind={tab}
+          activeId={activeId}
           online={online}
           onImport={importRuns}
           busy={busy}
@@ -257,18 +265,17 @@ export function EvaluationDashboard({ initialTab, initialRun }: { initialTab: Ru
         </div>
         <div className="control">
           <span className="label">Evaluation Run</span>
-          <div className="run-row" role="group" aria-label="Evaluation Run">
-            {tabRuns.length === 0 ? (
-              <span className="table-note" style={{ padding: "8px 0" }}>No {tab} runs for this checkpoint</span>
-            ) : (
-              tabRuns.map((r) => (
-                <button key={r.id} type="button" className="run-chip" aria-pressed={r.id === selectedId} onClick={() => chooseRun(r.id)}>
-                  <b>{r.provenance.split} split</b>
-                  <span>{formatTimestamp(r.created_at)}</span>
+          {tabRuns.length === 0 ? (
+            <span className="table-note" style={{ padding: "8px 0" }}>No {tab} runs for this checkpoint</span>
+          ) : (
+            <div className="seg" role="group" aria-label="Evaluation Run">
+              {tabRuns.map((r) => (
+                <button key={r.id} type="button" aria-pressed={r.id === selectedId} onClick={() => chooseRun(r.id)} title={`${r.id} · ${formatTimestamp(r.created_at)}`}>
+                  {runChipLabels.get(r.id)}
                 </button>
-              ))
-            )}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
         <span className="shell-spacer" />
         {selected ? (

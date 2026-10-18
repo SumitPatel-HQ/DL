@@ -49,6 +49,22 @@ export function runsFor(
     );
 }
 
+// "Test", or "Test 1", "Test 2", … when a split repeats, in list order.
+export function numberedSplitLabels(runs: readonly RunSummary[]): Map<string, string> {
+  const title = (split: string) => split.charAt(0).toUpperCase() + split.slice(1);
+  const totals = new Map<string, number>();
+  for (const run of runs) totals.set(run.provenance.split, (totals.get(run.provenance.split) ?? 0) + 1);
+  const seen = new Map<string, number>();
+  const labels = new Map<string, string>();
+  for (const run of runs) {
+    const split = run.provenance.split;
+    const n = (seen.get(split) ?? 0) + 1;
+    seen.set(split, n);
+    labels.set(run.id, (totals.get(split) ?? 0) > 1 ? `${title(split)} ${n}` : title(split));
+  }
+  return labels;
+}
+
 // Comparison key: two runs compare only under identical kind + dataset/split.
 // Cross-checkpoint pairs (E01 vs E02) share this key; kind or dataset drift does not.
 export function comparisonKey(run: RunSummary): string {
@@ -70,6 +86,41 @@ export function comparableRuns(runs: readonly RunSummary[], kind: RunKind): RunS
       (a, b) =>
         a.experiment_id.localeCompare(b.experiment_id) || a.created_at.localeCompare(b.created_at),
     );
+}
+
+export type ComparisonGroup = { key: string; label: string; runs: RunSummary[] };
+
+// Comparable runs grouped by comparison key, held-out test split first. Every
+// run in a group shares kind, dataset/split version, split and condition.
+// Runs of the active checkpoint lead their group, so it becomes the baseline.
+export function comparisonGroups(
+  runs: readonly RunSummary[],
+  kind: RunKind,
+  activeId: string | null = null,
+): ComparisonGroup[] {
+  const isActive = (run: RunSummary) => Number(run.provenance.checkpoint_sha256 === activeId);
+  const ordered = comparableRuns(runs, kind).sort((a, b) => isActive(b) - isActive(a));
+  const groups = new Map<string, ComparisonGroup>();
+  for (const run of ordered) {
+    const key = comparisonKey(run);
+    const p = run.provenance;
+    const split = p.split.charAt(0).toUpperCase() + p.split.slice(1);
+    const condition = conditionOf(run) === "noisy" ? " (noisy)" : "";
+    const group = groups.get(key) ?? { key, label: `${split}${condition}`, runs: [] };
+    group.runs.push(run);
+    groups.set(key, group);
+  }
+  // Same label twice (e.g. two test datasets): number them in order, 1 and 2.
+  const all = [...groups.values()];
+  for (const group of all) {
+    const same = all.filter((o) => o.label === group.label);
+    if (same.length > 1) group.label = `${group.label} ${same.indexOf(group) + 1}`;
+  }
+  const rank = (group: ComparisonGroup) => {
+    const index = SPLIT_ORDER.indexOf(group.runs[0].provenance.split);
+    return index === -1 ? SPLIT_ORDER.length : index;
+  };
+  return all.sort((a, b) => rank(a) - rank(b) || a.label.localeCompare(b.label));
 }
 
 // Pairing key: comparisonKey without the condition, plus the checkpoint.

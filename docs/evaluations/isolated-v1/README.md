@@ -77,3 +77,33 @@ uv run --locked python -m ml.evaluate compare --runs ../artifacts/evaluations/e0
 Repeat for `e02` and `--split validation`. A second E01 training run reproduced
 identical per-epoch losses and identical test metrics. Checkpoint file hashes
 differ between reruns because the checkpoint stores its creation timestamp.
+
+## LIVE3 on the same split
+
+LIVE3 (`artifacts/models/live3/`, checkpoint `2d27a2f0…`) is the model the live
+service runs. It is the E02 network (2 layers, hidden 128) retrained by
+`ml.train_live` on full Speech Commands v0.02 (`speech_commands_full`, ~3,000 clips
+per Keyword, 29 Unknown words) with gain/noise/shift augmentation. It reuses the
+P0 speaker split (test speakers are never read) and the P0 normalization file, so
+it is scored on the same 1,017 test and 1,018 validation clips as E01 and E02.
+Its runs record `checkpoint_dataset_version: speech_commands_full`.
+
+| | E01 | E02 | LIVE3 |
+|---|---|---|---|
+| Validation macro-F1 | 0.547 | 0.675 | 0.755 |
+| **Test macro-F1** | **0.641** | **0.740** | **0.797** |
+| Test accuracy | 0.644 | 0.734 | 0.781 |
+
+LIVE3 still misses the 0.85 target (Δ −0.053). Its weakest classes are Unknown
+(test F1 0.511; many keywords fall into Unknown) and `up` (recall 0.586). The
+live training log records only train loss, validation loss and validation
+accuracy, so train accuracy, validation macro-F1, example counts and early
+stopping are absent from these runs rather than estimated. LIVE3 validation
+curves come from its own full-dataset validation set, not the P0 one.
+
+Reproduce from `backend/`:
+
+```powershell
+uv run --locked python -m ml.evaluate run --checkpoint ../artifacts/models/live3/model.pt --features ../data/isolated/features --split test --allow-different-dataset --output ../artifacts/evaluations/live3-test.json
+uv run --locked python -m ml.evaluate compare --runs ../artifacts/evaluations/e01-test.json ../artifacts/evaluations/e02-test.json ../artifacts/evaluations/live3-test.json --output ../artifacts/evaluations/compare-e01-e02-live3-test.json
+```

@@ -1,0 +1,66 @@
+{
+  "comparison_type": "noise",
+  "kind": "isolated",
+  "checkpoint_sha256": "519de98bae5d065615844b23ef3041b71ffca0c88319f6e943b320e0075e3089",
+  "dataset_version": "speech-commands-v0.02-p1-noise-v1",
+  "split_version": "speaker-sha256-80-10-10-noise-sources-v2",
+  "split": "test",
+  "noise_sources": [
+    "exercise_bike",
+    "violet_noise",
+    "white_noise"
+  ],
+  "noise_sources_by_split": {
+    "test": [
+      "exercise_bike",
+      "violet_noise",
+      "white_noise"
+    ],
+    "train": [
+      "blue_noise",
+      "doing_the_dishes",
+      "pink_noise"
+    ],
+    "validation": [
+      "brown_noise",
+      "dude_miaowing",
+      "running_tap"
+    ]
+  },
+  "runs": [
+    {
+      "run_id": "e01-isolated-test-clean-519de98bae5d",
+      "condition": "clean",
+      "noise_sources": [
+        "exercise_bike",
+        "violet_noise",
+        "white_noise"
+      ],
+      "snr_db": null,
+      "accuracy": 0.6638811513463324,
+      "macro_f1": 0.6425888794918251,
+      "silence_recall_by_source": {
+        "exercise_bike": 0.8688524590163934,
+        "violet_noise": 1.0,
+        "white_noise": 1.0
+      }
+    },
+    {
+      "run_id": "e01-isolated-test-noisy-519de98bae5d",
+      "condition": "noisy",
+      "noise_sources": [
+        "exercise_bike",
+        "violet_noise",
+        "white_noise"
+      ],
+      "snr_db": 10.0,
+      "accuracy": 0.3147632311977716,
+      "macro_f1": 0.24761555428920573,
+      "silence_recall_by_source": {
+        "exercise_bike": 0.8688524590163934,
+        "violet_noise": 1.0,
+        "white_noise": 1.0
+      }
+    }
+  ]
+}

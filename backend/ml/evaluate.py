@@ -19,6 +19,7 @@ import torch
 from ml.checkpoint import LoadedModel, load_checkpoint
 from ml.data.manifest import noise_source_name
 from ml.data.prepare import load_cache
+from ml.features import Normalization
 from ml.metrics import classification_report, confusion_matrix
 from ml.runtime import code_revision, peak_rss_bytes
 
@@ -76,6 +77,50 @@ def silence_recall(
     return {source: hits[source] / total[source] for source in sorted(total)}
 
 
+def trained_on_dataset(
+    loaded: LoadedModel, features_dir: Path, evaluated: dict[str, Any]
+) -> dict[str, Any]:
+    """Dataset identity the checkpoint trained on.
+
+    P0 checkpoints record it. Live checkpoints (ml.train_live) record only their
+    speech root; they reuse the P0 speaker split and normalization file, so the
+    normalization is verified by value against this cache's normalization.
+    """
+    if "dataset" in loaded.metadata:
+        recorded: dict[str, Any] = loaded.metadata["dataset"]
+        return recorded
+    same_normalization = loaded.normalization == Normalization.load(
+        features_dir / "normalization.json"
+    )
+    return {
+        "dataset_version": loaded.metadata["config"]["speech_root"],
+        "split_version": evaluated["split_version"],
+        "manifest_sha256": None,
+        "normalization_sha256": evaluated["normalization_sha256"] if same_normalization else None,
+    }
+
+
+def training_summary(metadata: dict[str, Any]) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """Training facts and curves; fields a checkpoint never recorded stay None."""
+    training = metadata["training"]
+    curves = [
+        {
+            "epoch": row["epoch"],
+            "train_loss": row["train_loss"],
+            "train_accuracy": row.get("train_accuracy"),
+            "validation_loss": row.get("validation_loss", row.get("val_loss")),
+            "validation_accuracy": row.get("validation_accuracy", row.get("val_acc")),
+            "validation_macro_f1": row.get("validation_macro_f1"),
+        }
+        for row in training["history"]
+    ]
+    summary = {key: value for key, value in training.items() if key != "history"}
+    summary.setdefault("epochs_run", len(curves))
+    for key in ("train_examples", "validation_examples", "stopped_early"):
+        summary.setdefault(key, None)
+    return summary, curves
+
+
 def evaluate(
     checkpoint: Path,
     features_dir: Path,
@@ -95,9 +140,9 @@ def evaluate(
     cached = load_cache(features_dir, split, cache_name=cache_name)
     if tuple(cached.metadata["labels"]) != loaded.labels:
         raise ValueError("Cache and checkpoint class order disagree")
-    trained_on = loaded.metadata["dataset"]
     dataset = {key: cached.metadata[key] for key in DATASET_KEYS}
     effective_condition = condition or "clean"
+    trained_on = trained_on_dataset(loaded, features_dir, dataset)
     if dataset["normalization_sha256"] != trained_on["normalization_sha256"]:
         raise ValueError("Cache was built with different normalization than the checkpoint")
     if not allow_dataset_mismatch and dataset != trained_on:
@@ -116,6 +161,7 @@ def evaluate(
     eval_seconds = time.perf_counter() - started
     latency = single_window_latency(loaded, cached.features[0], latency_runs)
     experiment = loaded.metadata["experiment_id"]
+    training, curves = training_summary(loaded.metadata)
     # No suffix without a condition keeps the P0 run IDs unchanged.
     suffix = f"-{condition}" if condition else ""
     return {
@@ -155,10 +201,8 @@ def evaluate(
             "met": report["macro_f1"] >= MACRO_F1_TARGET,
             "note": "Hypothesis target; unmet targets are reported, never redefined.",
         },
-        "training": {
-            key: value for key, value in loaded.metadata["training"].items() if key != "history"
-        },
-        "curves": loaded.metadata["training"]["history"],
+        "training": training,
+        "curves": curves,
         "runtime": {
             "machine": {"os": platform.platform(), "cpu": platform.processor()},
             "evaluation_seconds": eval_seconds,
@@ -170,10 +214,15 @@ def evaluate(
 
 def compare(runs: list[dict[str, Any]]) -> dict[str, Any]:
     """Side-by-side runs; refuse comparisons across different data or splits."""
-    if len(runs) < 2 or any(run["dataset"] != runs[0]["dataset"] for run in runs):
+    def identity(run: dict[str, Any]) -> tuple[Any, ...]:
+        dataset = run["dataset"]
+        keys = (*DATASET_KEYS, "split")
+        return (*(dataset[key] for key in keys), dataset.get("condition", "clean"))
+
+    if len(runs) < 2 or any(identity(run) != identity(runs[0]) for run in runs):
         raise ValueError("Compare at least two Evaluation Runs on the identical split")
     return {
-        "dataset": runs[0]["dataset"],
+        "dataset": {key: runs[0]["dataset"][key] for key in (*DATASET_KEYS, "split")},
         "runs": [
             {
                 "experiment_id": run["experiment_id"],
@@ -191,10 +240,11 @@ def compare(runs: list[dict[str, Any]]) -> dict[str, Any]:
                 "features_plus_forward_median_ms": run["runtime"]["single_window_latency"][
                     "features_plus_forward_ms"
                 ]["median"],
-                "mean_train_epoch_seconds": run["training"]["mean_train_epoch_seconds"],
+                "mean_train_epoch_seconds": run["training"].get("mean_train_epoch_seconds"),
                 "best_epoch": run["training"]["best_epoch"],
                 "epochs_run": run["training"]["epochs_run"],
-                "training_peak_rss_bytes": run["training"]["peak_rss_bytes"],
+                "training_peak_rss_bytes": run["training"].get("peak_rss_bytes"),
+                "checkpoint_dataset_version": run["dataset"].get("checkpoint_dataset_version"),
             }
             for run in runs
         ],
