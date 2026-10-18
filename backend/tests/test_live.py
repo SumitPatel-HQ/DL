@@ -73,14 +73,23 @@ def test_smoothing_requires_consecutive_confident_windows() -> None:
     assert decisions[0].score == pytest.approx(0.65)
 
 
-def test_cooldown_rejects_a_second_utterance_until_it_expires() -> None:
+def test_cooldown_rejects_a_repeat_of_the_same_keyword_until_it_expires() -> None:
     decider = LiveDecider(POLICY)
     first = run(decider, [("go", 0.9), ("go", 0.9), ("silence", 0.9)], start=1.0)
-    second = run(decider, [("stop", 0.9), ("stop", 0.9), ("silence", 0.9)], start=1.75)
-    third = run(decider, [("stop", 0.9), ("stop", 0.9)], start=2.5)
+    second = run(decider, [("go", 0.9), ("go", 0.9), ("silence", 0.9)], start=1.75)
+    third = run(decider, [("go", 0.9), ("go", 0.9)], start=2.5)
     accepted = [(d.label, d.reason) for d in [*first, *second, *third] if d.label != "silence"]
-    assert accepted == [("go", "accepted"), ("stop", "cooldown"), ("stop", "accepted")]
-    assert third[-1].action == "pause"
+    assert accepted == [("go", "accepted"), ("go", "cooldown"), ("go", "accepted")]
+
+
+def test_a_different_keyword_right_after_an_accepted_one_still_acts() -> None:
+    # Measured on a real mic: "go" 1.0 s after "right" was lost to cooldown.
+    decider = LiveDecider(POLICY)
+    first = run(decider, [("right", 0.9), ("right", 0.9), ("silence", 0.9)], start=1.0)
+    second = run(decider, [("go", 0.9), ("go", 0.9)], start=1.75)
+    accepted = [(d.label, d.reason) for d in [*first, *second] if d.label != "silence"]
+    assert accepted == [("right", "accepted"), ("go", "accepted")]
+    assert second[-1].action == "play"
 
 
 def test_unknown_and_silence_are_rejected_once_per_run() -> None:

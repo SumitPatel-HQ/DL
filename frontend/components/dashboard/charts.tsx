@@ -58,9 +58,22 @@ export function LineChart({
   const y = (value: number) => M.top + (1 - (value - yMin) / (yMax - yMin)) * plotH;
   const xTicks = epochs.filter((e) => e === first || e === last || e % Math.max(1, Math.ceil(epochs.length / 8)) === 0);
 
+  // Series may hold NaN for epochs a run lacks; end markers use the last finite point.
+  const lastIndex = (values: number[]) => {
+    for (let i = values.length - 1; i >= 0; i--) if (Number.isFinite(values[i])) return i;
+    return -1;
+  };
+  const endOf = (s: Series) => {
+    const i = lastIndex(s.values);
+    return i < 0 ? null : { epoch: epochs[i], value: s.values[i] };
+  };
+
   // End labels nudged apart so they never overlap.
   const ends = series
-    .map((s) => ({ s, y: y(s.values[s.values.length - 1]) }))
+    .flatMap((s) => {
+      const end = endOf(s);
+      return end ? [{ s, end, y: y(end.value) }] : [];
+    })
     .sort((a, b) => a.y - b.y);
   for (let i = 1; i < ends.length; i++) ends[i].y = Math.max(ends[i].y, ends[i - 1].y + 14);
 
@@ -114,7 +127,10 @@ export function LineChart({
           {series.map((s) => (
             <path
               key={s.key}
-              d={s.values.map((v, i) => `${i ? "L" : "M"}${x(epochs[i]).toFixed(1)},${y(v).toFixed(1)}`).join("")}
+              d={s.values
+                .flatMap((v, i) => (Number.isFinite(v) ? [{ v, i }] : []))
+                .map(({ v, i }, n) => `${n ? "L" : "M"}${x(epochs[i]).toFixed(1)},${y(v).toFixed(1)}`)
+                .join("")}
               fill="none"
               stroke={s.color}
               strokeWidth={2}
@@ -122,10 +138,10 @@ export function LineChart({
               strokeLinecap="round"
             />
           ))}
-          {ends.map(({ s, y: labelY }) => (
+          {ends.map(({ s, end, y: labelY }) => (
             <g key={s.key}>
-              <circle cx={x(last)} cy={y(s.values[s.values.length - 1])} r={4} fill={s.color} stroke="var(--surface-1)" strokeWidth={2} />
-              <text x={x(last) + 9} y={labelY} dominantBaseline="middle" style={{ fill: "var(--text-2)" }}>
+              <circle cx={x(end.epoch)} cy={y(end.value)} r={4} fill={s.color} stroke="var(--surface-1)" strokeWidth={2} />
+              <text x={x(end.epoch) + 9} y={labelY} dominantBaseline="middle" style={{ fill: "var(--text-2)" }}>
                 {s.label}
               </text>
             </g>
@@ -133,7 +149,7 @@ export function LineChart({
           {index !== null ? (
             <g>
               <line x1={x(epochs[index])} x2={x(epochs[index])} y1={M.top} y2={M.top + plotH} stroke="var(--text-2)" />
-              {series.map((s) => (
+              {series.filter((s) => Number.isFinite(s.values[index])).map((s) => (
                 <circle key={s.key} cx={x(epochs[index])} cy={y(s.values[index])} r={4.5} fill={s.color} stroke="var(--surface-1)" strokeWidth={2} />
               ))}
             </g>

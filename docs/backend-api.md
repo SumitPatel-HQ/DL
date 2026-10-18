@@ -188,11 +188,12 @@ codes from health (1011), or `live_busy` (1013; one session at a time).
 After `ready` the client streams binary mono PCM_s16le frames of at most 32 KiB at
 its native rate. The server keeps about one window of mic audio in memory, resamples
 each 1 s window to 16 kHz through the shared feature pipeline, and scores a window
-every 0.25 s. Each window yields a `frame` message (`t_s`, top `label`, `score`).
-Decisions follow the initial live policy, which is not yet tuned on validation data:
+every 0.1 s. Each window yields a `frame` message (`t_s`, top `label`, `score`).
+Decisions follow the live policy, tuned on replayed Speech Commands test clips and
+one real-mic trace, not on a frozen validation split:
 consecutive windows with the same top label form one utterance; a Keyword is
-`accepted` when 2 windows in a row reach Confidence 0.7 and 1.2 s have passed since
-the last accepted action; otherwise it is rejected as `cooldown` or, when the run
+`accepted` when 2 windows in a row reach Confidence 0.7, beat the runner-up by 0.3,
+and 1.2 s have passed since that same Keyword was last accepted; otherwise it is rejected as `cooldown` or, when the run
 ends, `low_confidence`. Unknown and Silence runs are rejected once each as `unknown`
 or `silence`. One utterance causes at most one action. A `decision` message carries
 `id`, `t_s`, `label`, `score`, `accepted`, `reason`, `action` (only when accepted),

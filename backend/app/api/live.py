@@ -9,6 +9,7 @@ the session. Nothing keeps listening afterwards.
 import asyncio
 import contextlib
 import json
+import os
 import sqlite3
 import time
 from typing import Annotated, Any
@@ -28,12 +29,16 @@ from app.services.live import (
     LiveDecider,
     LiveService,
     LiveStream,
+    window_rms,
 )
 from app.services.windows_actions import WindowsExecutor
 from ml.spotting import KEYWORDS
 
 router = APIRouter(prefix="/api")
 HANDSHAKE_S = 5.0
+# Opt-in diagnostics: per-window level and top scores as JSON lines. Metadata
+# only, like live_events; raw mic audio is still never written.
+TRACE_PATH = os.environ.get("KWS_LIVE_TRACE")
 
 
 def service(request: Request) -> LiveService:
@@ -50,6 +55,31 @@ def actions(live: Annotated[LiveService, Depends(service)]) -> dict[str, Any]:
 def commands_legacy(live: Annotated[LiveService, Depends(service)]) -> dict[str, Any]:
     """Deprecated alias for GET /api/actions. Kept for backward compatibility."""
     return live.command_map()
+
+
+def trace(
+    session: str,
+    labels: tuple[str, ...],
+    windows: list[Any],
+    ends: list[float],
+    scores: Any,
+) -> None:
+    assert TRACE_PATH
+    with open(TRACE_PATH, "a", encoding="utf-8") as out:
+        for window, end, row in zip(windows, ends, scores, strict=True):
+            top = np.argsort(row)[::-1][:3]
+            rms = window_rms(window)
+            out.write(
+                json.dumps(
+                    {
+                        "session": session,
+                        "t_s": round(end, 3),
+                        "level_dbfs": round(20 * np.log10(max(rms, 1e-9)), 1),
+                        "top": [[labels[i], round(float(row[i]), 3)] for i in top],
+                    }
+                )
+                + "\n"
+            )
 
 
 @router.get("/external-actions/logs")
@@ -197,6 +227,8 @@ async def live(socket: WebSocket) -> None:
                 if not batch.windows:
                     continue
                 scores = await asyncio.to_thread(live.score, batch.windows)
+                if TRACE_PATH:
+                    trace(session, labels, batch.windows, batch.ends_s, scores)
                 for end, row in zip(batch.ends_s, scores, strict=True):
                     if generation != external.generation:
                         # Audio captured before a permission change cannot trigger the new target.
